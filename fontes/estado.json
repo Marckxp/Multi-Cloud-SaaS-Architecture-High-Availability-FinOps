@@ -1,5 +1,5 @@
 {
-  "versaoPacote": 1,
+  "versaoPacote": 2,
   "geradoEm": "2026-10-25",
   "arquitetura": {
     "padrao": "offline-first com borda estática e nuvem só para identidade e dados",
@@ -14,7 +14,7 @@
       { "id": "identidade", "camada": "identidade", "tecnologia": "Firebase Authentication pela API REST", "papel": "Conta, sessão e bloqueio do app (com biometria no aparelho)", "estado": "implementado" },
       { "id": "firestore", "camada": "dados-nuvem", "tecnologia": "Cloud Firestore com regras e índices versionados", "papel": "Destino da sincronização de envio e, depois, do recebimento entre aparelhos", "estado": "planejado" },
       { "id": "borda-cloudflare", "camada": "borda", "tecnologia": "Cloudflare Workers com arquivos estáticos (sem script)", "papel": "Hospedagem principal da Web, com cabeçalhos de segurança gerados no deploy", "estado": "publicado" },
-      { "id": "borda-azure", "camada": "borda", "tecnologia": "Azure Static Web Apps (Free)", "papel": "Hospedagem anterior da Web; fica como reserva", "estado": "reserva" },
+      { "id": "borda-azure", "camada": "borda", "tecnologia": "Azure Static Web Apps (Free)", "papel": "Ambiente beta da Web e reserva da produção", "estado": "publicado" },
       { "id": "runner-arm", "camada": "ci", "tecnologia": "GitHub Actions com runner próprio em VM Ampere A1 (ARM64)", "papel": "Build, testes e deploy sem consumir minutos pagos", "estado": "avaliado" },
       { "id": "servidor-minimo", "camada": "computacao", "tecnologia": "Funções de nuvem ou serviço .NET na VM ARM", "papel": "Encerrar sessões em todos os aparelhos e excluir conta com todos os dados", "estado": "planejado" },
       { "id": "emuladores", "camada": "operacao", "tecnologia": "Firebase Emulator Suite (Auth e Firestore)", "papel": "Alvo padrão de desenvolvimento e dos testes de integração", "estado": "implementado" }
@@ -36,7 +36,7 @@
       "regra": "Gasto zero: só SKU Free. Assinatura paga por uso não aceita teto de gasto, então a proteção é negar o que não for Free.",
       "servicos": [
         {
-          "servico": "Static Web Apps", "sku": "Free", "regiao": "East US 2", "estado": "reserva", "papel": "Hospedagem anterior da Web",
+          "servico": "Static Web Apps", "sku": "Free", "regiao": "East US 2", "estado": "publicado", "papel": "Ambiente beta da Web e reserva da produção",
           "limites": [
             { "recurso": "banda", "cota": 100, "unidade": "GB", "periodo": "mês por assinatura", "observacao": "No Free o site para de servir ao passar; não há excedente cobrado" },
             { "recurso": "armazenamento por ambiente", "cota": 250, "unidade": "MB", "periodo": "total" },
@@ -75,10 +75,12 @@
         { "servico": "Firebase Authentication", "sku": "Blaze (cota sem custo)", "estado": "implementado", "papel": "Identidade", "limites": [ { "recurso": "usuários ativos mensais", "cota": 50000, "unidade": "MAU", "periodo": "mês" }, { "recurso": "SMS", "cota": 0, "unidade": "SMS", "periodo": "mês", "observacao": "Login por telefone não é habilitado: é cobrado desde o primeiro SMS" } ] },
         { "servico": "Cloud Firestore", "sku": "Blaze (cota sem custo)", "regiao": "southamerica-east1", "estado": "planejado", "papel": "Sincronização", "limites": [ { "recurso": "leituras", "cota": 50000, "unidade": "documentos", "periodo": "dia" }, { "recurso": "gravações", "cota": 20000, "unidade": "documentos", "periodo": "dia" }, { "recurso": "armazenado", "cota": 1, "unidade": "GiB", "periodo": "total", "observacao": "Só o banco (default); um segundo banco é cobrado" } ] },
         { "servico": "Cloud Build", "sku": "Gratuito", "estado": "avaliado", "papel": "Build x64 do Android, que não roda no runner ARM", "limites": [ { "recurso": "minutos de build", "cota": 2500, "unidade": "min", "periodo": "mês" } ] },
-        { "servico": "Cloud Run", "estado": "legado", "papel": "Backend de uma versão anterior, mínimo de 0 instâncias, sem uso" }
+        { "servico": "Firebase (projeto do ambiente beta)", "sku": "Spark (sem faturamento)", "estado": "publicado", "papel": "Identidade do ambiente beta, separada da produção" },
+        { "servico": "Cloud Run", "estado": "legado", "papel": "Backend de uma versão anterior, mínimo de 0 instâncias", "observacao": "Zero requisições em 365 dias e nenhuma referência no código; exclusão decidida" }
       ],
       "protecoes": [
-        { "tipo": "alerta", "descricao": "Orçamento com alerta na conta de faturamento", "estado": "planejada" }
+        { "tipo": "budget", "descricao": "Orçamento mensal de R$ 1 filtrado para o projeto do app, com alertas em 1%, 50% e 100%", "estado": "ativa" },
+        { "tipo": "sku-sem-excedente", "descricao": "O ambiente beta usa um projeto Firebase no plano Spark: ao bater a cota, ele para em vez de cobrar", "estado": "ativa" }
       ]
     }
   ],
@@ -88,9 +90,12 @@
       { "nome": "primeira visita à Web", "valor": 4.08, "unidade": "MB (brotli)", "como": "Medido no navegador: cerca de 80 requisições" },
       { "nome": "visita repetida com service worker", "valor": 7, "unidade": "KB", "como": "Medido no navegador" },
       { "nome": "banda por usuário ativo", "valor": 12.8, "unidade": "MB/mês", "como": "Estimado: cada publicação invalida todos os arquivos (mesmo ETag)" },
+      { "nome": "parte da banda que vem das atualizações", "valor": 64, "unidade": "%", "como": "Estimado a partir da banda por usuário e da frequência de publicação" },
       { "nome": "usuários ativos que cabem no SWA Free", "valor": 7800, "unidade": "MAU", "como": "100 GB/mês divididos pela banda por usuário" },
       { "nome": "publish da Web no runner ARM", "valor": 45, "unidade": "s", "como": "Medido na VM A1" },
-      { "nome": "testes .NET no runner ARM", "valor": 977, "unidade": "testes verdes", "como": "Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1)" }
+      { "nome": "testes .NET no runner ARM", "valor": 977, "unidade": "testes verdes", "como": "Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1)" },
+      { "nome": "publicação na Cloudflare", "valor": 1, "unidade": "min", "como": "Medido com o build no PC" },
+      { "nome": "arquivos enviados numa publicação incremental", "valor": 10, "unidade": "de 78 arquivos", "como": "Medido no envio do Wrangler: só os arquivos mudados sobem" }
     ],
     "gatilhosDeReavaliacao": [
       "Web acima de 80 GB/mês: reavaliar CDN de outro provedor",
@@ -102,8 +107,8 @@
     "suites": [
       { "nome": "Unidade e integração do núcleo", "ferramenta": "xUnit", "alvo": ".NET", "quantidade": 584 },
       { "nome": "Integração contra emulador", "ferramenta": "xUnit + Firebase Auth Emulator", "alvo": ".NET", "quantidade": 5 },
-      { "nome": "Componentes Razor", "ferramenta": "bUnit", "alvo": ".NET", "quantidade": 418 },
-      { "nome": "Ponta a ponta na Web", "ferramenta": "Playwright", "alvo": "Web em 3 larguras (celular, tablet, desktop)", "quantidade": 77 },
+      { "nome": "Componentes Razor", "ferramenta": "bUnit", "alvo": ".NET", "quantidade": 433 },
+      { "nome": "Ponta a ponta na Web", "ferramenta": "Playwright", "alvo": "Web em 3 larguras (celular, tablet, desktop)", "quantidade": 83, "observacao": "25 no celular, 10 no tablet e 48 no desktop" },
       { "nome": "Ponta a ponta no app Windows", "ferramenta": "Playwright via CDP no WebView2", "alvo": "Windows", "quantidade": 3 },
       { "nome": "Auditoria de layout no Android", "ferramenta": "Playwright + adb pelo USB", "alvo": "Android real", "quantidade": 8, "observacao": "Telas auditadas: rolagem, elementos fora da tela, desalinhados, alvos de toque abaixo de 40 px" }
     ],
@@ -111,6 +116,9 @@
       "TDD: o teste falha pelo motivo certo antes da implementação",
       "Avisos de compilação tratados como erro; documentação XML exigida no CI",
       "Cabeçalhos de segurança e CSP testados no ponta a ponta",
+      "Service worker testado no ponta a ponta: volta ao app pelo cache e abertura sem rede",
+      "Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline",
+      "Quality gate do SonarQube Cloud nos pull requests",
       "Firebase local (emuladores) como alvo padrão; o projeto real só quando o emulador não responde",
       "Documentação por arquivo num espelho da árvore, com invariantes e motivos, não assinaturas"
     ]
@@ -118,17 +126,20 @@
   "processo": [
     "Cada entrega passa por especificação, plano, execução com TDD, revisão independente e correções com teste",
     "Achados menores de revisão ficam registrados com dono e momento de resolver",
-    "Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão)",
+    "Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão, depuração, pesquisa em documentação, nuvem)",
+    "Cada agente tem modelo e nível de esforço definidos pelo tipo de trabalho, e uma orquestração decide o que roda em paralelo e como avaliar o que volta",
+    "Esta vitrine é atualizada por um pacote de fatos saneado, um agente que escreve (Jules) e um revisor automático (regras, SonarQube Cloud e Claude) que aprova ou devolve o PR",
     "Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%"
   ],
   "roteiro": [
     { "item": "Migrar a landing page para a Cloudflare", "estado": "planejado" },
+    { "item": "Domínio próprio: produção na Cloudflare e o Azure de volta a reserva, com troca pelo DNS", "estado": "planejado" },
+    { "item": "Excluir o backend legado do Cloud Run", "estado": "planejado" },
     { "item": "CI com GitHub Actions no runner ARM: build, testes, preview por branch e produção na Cloudflare", "estado": "planejado" },
     { "item": "Sincronização de envio (outbox para o Firestore) com regras testadas no emulador", "estado": "planejado" },
     { "item": "Recebimento entre aparelhos com regra de conflito", "estado": "planejado" },
     { "item": "Servidor mínimo: Functions ou .NET na VM ARM", "estado": "planejado", "condicao": "Depende da estimativa de clientes e de desempenho igual ou melhor" },
     { "item": "APIs em contêineres na OCI atrás de Cloudflare Tunnel, acesso administrativo por Tailscale, PostgreSQL e Redis", "estado": "planejado", "condicao": "Topologia original desta vitrine; entra quando houver backend com carga medida" },
-    { "item": "Alerta de orçamento no Google Cloud", "estado": "planejado" },
     { "item": "AWS e Alibaba Cloud", "estado": "descartado", "condicao": "Reavaliar nos gatilhos de finops" }
   ]
 }
