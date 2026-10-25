@@ -1,0 +1,42 @@
+name: vazamento
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fontes válidas
+        run: node ferramentas/verificar-fontes.mjs
+      - name: README em dia com as fontes
+        run: node ferramentas/gerar-readme.mjs --verificar
+      - name: Sem vazamento nos arquivos
+        env:
+          VITRINE_PROIBIDOS: ${{ secrets.VITRINE_PROIBIDOS }}
+        run: node ferramentas/verificar-vazamento.mjs --exigir-lista
+      - name: Sem vazamento no histórico do PR
+        if: github.event_name == 'pull_request'
+        env:
+          VITRINE_PROIBIDOS: ${{ secrets.VITRINE_PROIBIDOS }}
+        run: node ferramentas/verificar-vazamento.mjs --exigir-lista --intervalo "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - name: PR do Jules não mexe em fontes, ferramentas nem workflows
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.user.login, 'jules')
+        run: |
+          proibidos=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^(fontes/|ferramentas/|\.github/|AGENTS\.md$)' || true)
+          if [ -n "$proibidos" ]; then echo "Caminhos protegidos alterados:"; echo "$proibidos"; exit 1; fi
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

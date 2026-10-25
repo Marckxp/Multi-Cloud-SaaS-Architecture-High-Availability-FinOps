@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "displayName": "Somente SKU Free para Static Web Apps e planos do App Service",
+    "description": "Bloqueia a criação ou alteração de Static Web Apps e planos do App Service fora do plano gratuito, para manter o gasto da assinatura em zero.",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": { "category": "Custo" },
+    "policyRule": {
+      "if": {
+        "anyOf": [
+          {
+            "allOf": [
+              { "field": "type", "equals": "Microsoft.Web/staticSites" },
+              { "field": "Microsoft.Web/staticSites/sku.name", "notEquals": "Free" }
+            ]
+          },
+          {
+            "allOf": [
+              { "field": "type", "equals": "Microsoft.Web/serverfarms" },
+              { "field": "Microsoft.Web/serverFarms/sku.tier", "notEquals": "Free" }
+            ]
+          }
+        ]
+      },
+      "then": { "effect": "deny" }
+    }
+  }
+}

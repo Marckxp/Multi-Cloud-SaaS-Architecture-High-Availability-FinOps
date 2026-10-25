@@ -1,0 +1,27 @@
+name: acionar-jules
+
+# Um PR com a etiqueta fatos-vitrine foi aceito: abre uma issue com a etiqueta jules para o
+# Jules atualizar a vitrine a partir das fontes novas, seguindo o AGENTS.md.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  issue:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'fatos-vitrine')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Abrir a issue para o Jules
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          gh label create jules --color 4285F4 --description "Tarefa para o Jules" --force
+          gh issue create --label jules \
+            --title "Atualizar a vitrine a partir das fontes do PR #$PR" \
+            --body "Siga a tarefa padrão do AGENTS.md (\"Atualizar a vitrine a partir das fontes\") com as fontes do commit $SHA, que entraram pelo PR #$PR. Não altere fontes/, ferramentas/, .github/ nem o AGENTS.md. Abra um único PR."

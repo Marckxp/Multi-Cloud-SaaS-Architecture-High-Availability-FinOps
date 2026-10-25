@@ -1,0 +1,18 @@
+{
+  "budget": {
+    "displayName": "gasto-zero",
+    "description": "Gasto zero: qualquer cobrança gera alerta",
+    "amount": 1,
+    "resetPeriod": "MONTHLY",
+    "targetType": "COMPARTMENT",
+    "target": "<OCID_DA_TENANCY>"
+  },
+  "alertRule": {
+    "displayName": "qualquer-cobranca",
+    "type": "ACTUAL",
+    "threshold": 0.01,
+    "thresholdType": "ABSOLUTE",
+    "recipients": "<E-MAIL_DO_RESPONSAVEL>",
+    "message": "Houve cobrança na Oracle Cloud. A conta deveria ter gasto zero."
+  }
+}

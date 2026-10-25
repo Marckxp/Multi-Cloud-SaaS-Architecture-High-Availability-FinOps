@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fontes/estado.schema.json",
+  "title": "Pacote de fatos da vitrine",
+  "description": "Fatos saneados do projeto de origem. É a única entrada para o README, os ADRs, finops/ e o roteiro. Nada fora deste arquivo e de fontes/decisoes/ pode virar afirmação na vitrine.",
+  "type": "object",
+  "required": ["versaoPacote", "geradoEm", "arquitetura", "nuvens", "finops", "qualidade", "processo", "roteiro"],
+  "additionalProperties": false,
+  "$defs": {
+    "estado": {
+      "type": "string",
+      "enum": ["publicado", "implementado", "em-teste", "avaliado", "planejado", "reserva", "legado", "descartado"]
+    },
+    "limite": {
+      "type": "object",
+      "required": ["recurso", "cota", "unidade", "periodo"],
+      "additionalProperties": false,
+      "properties": {
+        "recurso": { "type": "string" },
+        "cota": { "type": "number" },
+        "unidade": { "type": "string" },
+        "periodo": { "type": "string" },
+        "observacao": { "type": "string" }
+      }
+    }
+  },
+  "properties": {
+    "versaoPacote": { "type": "integer", "minimum": 1 },
+    "geradoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "arquitetura": {
+      "type": "object",
+      "required": ["padrao", "resumo", "componentes"],
+      "additionalProperties": false,
+      "properties": {
+        "padrao": { "type": "string" },
+        "resumo": { "type": "string" },
+        "componentes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "camada", "tecnologia", "papel", "estado"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+              "camada": { "type": "string", "enum": ["cliente", "dados-locais", "borda", "identidade", "dados-nuvem", "computacao", "ci", "operacao"] },
+              "tecnologia": { "type": "string" },
+              "papel": { "type": "string" },
+              "estado": { "$ref": "#/$defs/estado" },
+              "conectaCom": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "nuvens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provedor", "regra", "servicos", "protecoes"],
+        "additionalProperties": false,
+        "properties": {
+          "provedor": { "type": "string" },
+          "regra": { "type": "string" },
+          "servicos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["servico", "estado", "papel"],
+              "additionalProperties": false,
+              "properties": {
+                "servico": { "type": "string" },
+                "sku": { "type": "string" },
+                "regiao": { "type": "string" },
+                "estado": { "$ref": "#/$defs/estado" },
+                "papel": { "type": "string" },
+                "limites": { "type": "array", "items": { "$ref": "#/$defs/limite" } },
+                "observacao": { "type": "string" }
+              }
+            }
+          },
+          "protecoes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["tipo", "descricao", "estado"],
+              "additionalProperties": false,
+              "properties": {
+                "tipo": { "type": "string", "enum": ["policy", "quota", "budget", "alerta", "sku-sem-excedente", "nenhuma"] },
+                "descricao": { "type": "string" },
+                "estado": { "type": "string", "enum": ["ativa", "planejada", "ausente"] },
+                "verificacao": { "type": "string" },
+                "arquivo": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "finops": {
+      "type": "object",
+      "required": ["limiteOperacionalPercentual", "medicoes"],
+      "additionalProperties": false,
+      "properties": {
+        "limiteOperacionalPercentual": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "medicoes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["nome", "valor", "unidade", "como"],
+            "additionalProperties": false,
+            "properties": {
+              "nome": { "type": "string" },
+              "valor": { "type": "number" },
+              "unidade": { "type": "string" },
+              "como": { "type": "string" }
+            }
+          }
+        },
+        "gatilhosDeReavaliacao": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "qualidade": {
+      "type": "object",
+      "required": ["suites", "praticas"],
+      "additionalProperties": false,
+      "properties": {
+        "suites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["nome", "ferramenta", "alvo", "quantidade"],
+            "additionalProperties": false,
+            "properties": {
+              "nome": { "type": "string" },
+              "ferramenta": { "type": "string" },
+              "alvo": { "type": "string" },
+              "quantidade": { "type": "integer", "minimum": 0 },
+              "observacao": { "type": "string" }
+            }
+          }
+        },
+        "praticas": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "processo": { "type": "array", "items": { "type": "string" } },
+    "roteiro": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item", "estado"],
+        "additionalProperties": false,
+        "properties": {
+          "item": { "type": "string" },
+          "estado": { "$ref": "#/$defs/estado" },
+          "condicao": { "type": "string" }
+        }
+      }
+    }
+  }
+}
