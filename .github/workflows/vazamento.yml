@@ -37,6 +37,12 @@ jobs:
         run: |
           proibidos=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^(fontes/|ferramentas/|\.github/|AGENTS\.md$)' || true)
           if [ -n "$proibidos" ]; then echo "Caminhos protegidos alterados:"; echo "$proibidos"; exit 1; fi
+      - name: Pacote de fatos só mexe em fontes/ e README.md (R7)
+        # Os PRs fatos/* entram com merge automático; qualquer outro caminho exige um PR humano.
+        if: github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'fatos/')
+        run: |
+          fora=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -vE '^(fontes/|README\.md$)' || true)
+          if [ -n "$fora" ]; then echo "R7: o pacote de fatos alterou caminhos fora de fontes/ e README.md:"; echo "$fora"; exit 1; fi
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
