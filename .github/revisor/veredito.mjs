@@ -16,7 +16,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 const MAX_TENTATIVAS = 3;
 const MARCADOR = "<!-- revisor:reprovado -->";
 const { GH_REPO, PR, HEAD_SHA, EH_AGENTE, REGRAS, SONAR, CLAUDE } = process.env;
-const gh = (...a) => execFileSync("gh", a, { encoding: "utf8" });
+// NOSONAR(S4036): gh vem do PATH do runner do GitHub ou da máquina do mantenedor; caminho absoluto quebraria entre Linux e Windows.
+const gh = (...a) => execFileSync("gh", a, { encoding: "utf8" }); // NOSONAR
 
 function publicar(conclusao, titulo, resumo) {
   const corpo = { name: "revisao", head_sha: HEAD_SHA, status: "completed", conclusion: conclusao, output: { title: titulo, summary: resumo.slice(0, 65000) } };

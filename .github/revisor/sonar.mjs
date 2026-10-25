@@ -29,15 +29,16 @@ async function api(caminho) {
 
 try {
   if (!SONAR_TOKEN) terminar("erro", "Secret `SONAR_TOKEN` ausente. ");
-  // A análise do Sonar é assíncrona: espera a do commit atual do PR.
-  let pr;
-  for (;;) {
+  // A análise do Sonar é assíncrona: espera a do commit atual do PR, consultando a cada 20 s.
+  const aguardarAnalise = async () => {
     const lista = await api(`project_pull_requests/list?project=${encodeURIComponent(SONAR_PROJETO)}`);
-    pr = lista.pullRequests.find((p) => p.key === String(PR));
-    if (pr?.commit?.sha === HEAD_SHA && pr.status?.qualityGateStatus) break;
+    const atual = lista.pullRequests.find((p) => p.key === String(PR));
+    if (atual?.commit?.sha === HEAD_SHA && atual.status?.qualityGateStatus) return atual;
     if (Date.now() > limite) terminar("erro", `A análise do Sonar do commit ${HEAD_SHA.slice(0, 7)} não terminou a tempo. `);
     await esperar(20000);
-  }
+    return aguardarAnalise();
+  };
+  const pr = await aguardarAnalise();
 
   const painel = `https://sonarcloud.io/summary/new_code?id=${encodeURIComponent(SONAR_PROJETO)}&pullRequest=${PR}`;
   if (pr.status.qualityGateStatus === "OK") terminar("success", `### SonarQube Cloud: quality gate aprovado\n\n[Painel](${painel})\n`);

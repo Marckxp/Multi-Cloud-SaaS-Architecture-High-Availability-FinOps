@@ -23,7 +23,8 @@ if (!base) {
   process.exit(2);
 }
 
-const git = (...a) => execFileSync("git", a, { cwd: raiz, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+// NOSONAR(S4036): git vem do PATH do runner do GitHub ou da máquina do mantenedor; caminho absoluto quebraria entre Linux e Windows.
+const git = (...a) => execFileSync("git", a, { cwd: raiz, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }); // NOSONAR
 const mostrar = (caminho) => {
   try {
     return git("show", `${head}:${caminho}`);
