@@ -7,12 +7,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-  checks: write
-  id-token: write
+# Cada job recebe só o que precisa: o Claude roda num job que apenas lê; quem publica o check,
+# comenta e desliga o merge automático (isso exige contents: write) é o job do veredito.
+permissions: {}
 
 concurrency:
   group: revisor-${{ github.event.pull_request.number }}
@@ -21,9 +18,14 @@ concurrency:
 jobs:
   revisar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      regras: ${{ steps.regras.outcome }}
+      sonar: ${{ steps.sonar.outputs.resultado }}
+      claude: ${{ steps.claude.outcome }}
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GH_REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -68,12 +70,50 @@ jobs:
           claude_args: >-
             --model claude-sonnet-5-5 --max-turns 40
             --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
-      - name: Veredito
+      - name: Guardar os relatórios para o veredito
         if: always()
-        env:
-          REGRAS: ${{ steps.regras.outcome }}
-          SONAR: ${{ steps.sonar.outputs.resultado }}
-          CLAUDE: ${{ steps.claude.outcome }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: revisao
+          path: |
+            regras.md
+            sonar.md
+            revisao.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  veredito:
+    needs: revisar
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      EH_AGENTE: ${{ startsWith(github.event.pull_request.head.ref, 'jules-') }}
+      REGRAS: ${{ needs.revisar.outputs.regras }}
+      SONAR: ${{ needs.revisar.outputs.sonar }}
+      CLAUDE: ${{ needs.revisar.outputs.claude }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Relatórios da revisão
+        if: env.EH_AGENTE == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: revisao
+      - name: Veredito
         run: |
           if [ ! -f .github/revisor/veredito.mjs ]; then echo "A base ainda não tem o revisor (PR que o introduz)."; exit 0; fi
           node .github/revisor/veredito.mjs
