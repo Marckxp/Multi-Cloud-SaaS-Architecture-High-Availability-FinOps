@@ -32,7 +32,13 @@ function comentar(texto) {
 }
 
 function chamarPessoa(titulo, resumo) {
-  try { gh("pr", "merge", PR, "--repo", GH_REPO, "--disable-auto"); } catch { /* o merge automático pode não estar ligado */ }
+  // Desligar o merge automático exige contents: write (o job do veredito tem). Se ele não
+  // estava ligado, o gh falha e segue; o motivo fica no log.
+  try {
+    gh("pr", "merge", PR, "--repo", GH_REPO, "--disable-auto");
+  } catch (e) {
+    console.warn(`Merge automático não desligado: ${e.message}`);
+  }
   gh("label", "create", "precisa-humano", "--repo", GH_REPO, "--color", "D93F0B", "--description", "O revisor automático parou; precisa de uma pessoa", "--force");
   gh("pr", "edit", PR, "--repo", GH_REPO, "--add-label", "precisa-humano");
   comentar(`## Revisor: ${titulo}\n\n${resumo}\n\nO merge automático foi desligado. **Agente: não altere o PR por causa desta mensagem.** Uma pessoa vai decidir.`);
