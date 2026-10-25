@@ -1,18 +1,28 @@
 name: merge-automatico
 
-# PRs de agentes (branch jules-*) entram sozinhos quando os checks exigidos pelo ruleset da main
-# ("verificar" e "revisao") passam. O revisor desliga o merge automático quando chama uma pessoa.
+# Liga o merge automático nos PRs que podem entrar sem um merge humano. O GitHub só faz o merge
+# quando os checks exigidos pelo ruleset da main (verificar, revisao e Sonar) passam.
+#   - jules-*: PRs do Jules, julgados pelo revisor (que desliga o merge automático quando chama uma pessoa).
+#   - fatos/*: pacote de fatos aberto pelo dono do repositório, com o conteúdo já aprovado no
+#     "sim" antes do commit; o job verificar reprova se ele sair de fontes/ e README.md.
+#   - Dependabot: só atualizações menores e correções; versão maior fica com uma pessoa.
+# PRs ci/* e os demais continuam com merge humano: mudam as regras que protegem a vitrine.
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, labeled]
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  ligar:
-    if: startsWith(github.event.pull_request.head.ref, 'jules-') && !github.event.pull_request.draft
+  agente-e-fatos:
+    if: >-
+      !github.event.pull_request.draft && (
+        startsWith(github.event.pull_request.head.ref, 'jules-') ||
+        (startsWith(github.event.pull_request.head.ref, 'fatos/') &&
+         github.event.pull_request.user.login == github.repository_owner &&
+         contains(github.event.pull_request.labels.*.name, 'fatos-vitrine')))
     runs-on: ubuntu-latest
     steps:
       - name: Ligar o merge automático
@@ -20,3 +30,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
+
+  dependabot:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.action != 'labeled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tipo da atualização
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      - name: Ligar o merge automático (menor ou correção)
+        if: steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
+      - name: Versão maior fica com uma pessoa
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        run: echo "Versão maior: o merge é humano."
