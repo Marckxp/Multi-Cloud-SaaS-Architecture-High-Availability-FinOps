@@ -2,12 +2,13 @@ name: acionar-jules
 
 # Um PR com a etiqueta fatos-vitrine foi aceito: abre uma issue com a etiqueta jules para o
 # Jules atualizar a vitrine a partir das fontes novas, seguindo o AGENTS.md.
+# A issue sai com o token JULES_GATILHO_TOKEN (fine-grained, só Issues nesta vitrine) porque o
+# Jules ignora etiquetas postas pelo github-actions[bot] (conferido em 2026-10-25).
 on:
   pull_request:
     types: [closed]
 
-permissions:
-  issues: write
+permissions: {}
 
 jobs:
   issue:
@@ -16,11 +17,12 @@ jobs:
     steps:
       - name: Abrir a issue para o Jules
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.JULES_GATILHO_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then echo "Secret JULES_GATILHO_TOKEN ausente: o Jules não reage a etiqueta posta pelo bot."; exit 1; fi
           gh label create jules --color 4285F4 --description "Tarefa para o Jules" --force
           gh issue create --label jules \
             --title "Atualizar a vitrine a partir das fontes do PR #$PR" \

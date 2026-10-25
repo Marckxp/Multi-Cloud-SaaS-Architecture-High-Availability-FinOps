@@ -1,0 +1,9 @@
+# Mantém as actions atualizadas, inclusive as fixadas por SHA (o comentário com a versão é atualizado junto).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14

@@ -1,0 +1,79 @@
+name: revisor
+
+# Revisa PRs de agentes (branch jules-*) antes do merge automático: regras determinísticas,
+# quality gate do SonarQube Cloud e revisão semântica pelo Claude (.github/revisor/instrucoes.md).
+# O resultado vira o check "revisao", exigido pelo ruleset da main. PRs humanos recebem "revisao" verde na hora.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
+  id-token: write
+
+concurrency:
+  group: revisor-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      EH_AGENTE: ${{ startsWith(github.event.pull_request.head.ref, 'jules-') }}
+    steps:
+      # A pasta de trabalho é a base (confiável): regras, instruções e veredito nunca vêm do PR.
+      # O conteúdo do PR é lido pelo git (HEAD_SHA), como dado.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+      - name: Trazer o commit do PR
+        run: git fetch --no-tags origin "$HEAD_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Regras determinísticas
+        id: regras
+        if: env.EH_AGENTE == 'true'
+        continue-on-error: true
+        run: node ferramentas/revisar-pr-jules.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --saida regras.md
+      - name: SonarQube Cloud
+        id: sonar
+        if: env.EH_AGENTE == 'true' && steps.regras.outcome == 'success'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJETO: Marckxp_Multi-Cloud-SaaS-Architecture-High-Availability-FinOps
+        run: node .github/revisor/sonar.mjs
+      - name: Revisão semântica
+        id: claude
+        if: env.EH_AGENTE == 'true' && steps.regras.outcome == 'success'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c # v1.0.242
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Siga .github/revisor/instrucoes.md para revisar o PR #${{ github.event.pull_request.number }}.
+            BASE=${{ github.event.pull_request.base.sha }} HEAD=${{ github.event.pull_request.head.sha }}.
+            A pasta de trabalho está na BASE; leia os arquivos do PR com git show HEAD:<caminho> e git diff BASE..HEAD.
+            Grave o veredito em revisao.json e não altere nenhum outro arquivo.
+          claude_args: >-
+            --model claude-sonnet-5-5 --max-turns 40
+            --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+      - name: Veredito
+        if: always()
+        env:
+          REGRAS: ${{ steps.regras.outcome }}
+          SONAR: ${{ steps.sonar.outputs.resultado }}
+          CLAUDE: ${{ steps.claude.outcome }}
+        run: |
+          if [ ! -f .github/revisor/veredito.mjs ]; then echo "A base ainda não tem o revisor (PR que o introduz)."; exit 0; fi
+          node .github/revisor/veredito.mjs
