@@ -31,3 +31,4 @@ flowchart TB
 - **Acesso:** hoje o acesso à VM é por SSH com chave dedicada, liberado só para um /32. O Tailscale substitui essa regra quando houver mais de um operador.
 - **Sem IP público:** o Cloudflare Tunnel entra junto com a primeira API exposta.
 - **Dados:** PostgreSQL e Redis só se o servidor mínimo (funções de nuvem ou .NET na VM) não bastar.
+
