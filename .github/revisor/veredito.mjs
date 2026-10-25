@@ -45,6 +45,16 @@ function chamarPessoa(titulo, resumo) {
   publicar("action_required", titulo, resumo);
 }
 
+// Aprovado numa nova execução depois de ter chamado uma pessoa (por exemplo, depois de trocar um
+// token): tira a etiqueta e religa o merge automático, que o merge-automatico.yml só liga ao abrir.
+function liberar() {
+  const etiquetas = JSON.parse(gh("pr", "view", PR, "--repo", GH_REPO, "--json", "labels")).labels.map((l) => l.name);
+  if (!etiquetas.includes("precisa-humano")) return;
+  gh("pr", "edit", PR, "--repo", GH_REPO, "--remove-label", "precisa-humano");
+  gh("pr", "merge", PR, "--repo", GH_REPO, "--auto", "--merge", "--delete-branch");
+  comentar("## Revisor: aprovado numa nova execução\n\nA etiqueta `precisa-humano` foi retirada e o merge automático foi religado.");
+}
+
 if (EH_AGENTE !== "true") {
   publicar("success", "PR humano: sem revisão automática", "Este PR não vem de um agente; a revisão é de quem fizer o merge.");
   process.exit(0);
@@ -80,6 +90,7 @@ if (REGRAS !== "success") {
   const obs = (r.observacoes ?? []).map((o) => "- " + o).join("\n");
   const blocoObs = obs ? "\nObservações (não bloqueiam):\n" + obs + "\n" : "";
   if (r.veredito === "aprovado" && SONAR === "success") {
+    liberar();
     publicar("success", "aprovado", `${regras}\n${sonar}\n### Revisão semântica: aprovado\n${blocoObs}`);
     process.exit(0);
   }
