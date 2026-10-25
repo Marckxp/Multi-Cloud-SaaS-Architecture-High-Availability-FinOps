@@ -22,9 +22,12 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # No pacote de fatos, o merge automático é ligado com o token do dono (JULES_GATILHO_TOKEN,
+      # fine-grained, só esta vitrine): um merge feito com o GITHUB_TOKEN não dispara outros
+      # workflows, e o acionar-jules precisa do evento "closed" do PR (visto no PR #16).
       - name: Ligar o merge automático
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ startsWith(github.event.pull_request.head.ref, 'fatos/') && secrets.JULES_GATILHO_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
 
