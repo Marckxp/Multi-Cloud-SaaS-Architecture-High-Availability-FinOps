@@ -42,4 +42,4 @@ jobs:
         run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
       - name: Versão maior fica com uma pessoa
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
-        run: echo "Versão maior: o merge é humano."
+        run: echo "Versão maior, o merge é humano."
