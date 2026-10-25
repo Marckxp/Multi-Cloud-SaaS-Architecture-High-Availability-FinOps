@@ -1,0 +1,24 @@
+{
+  "descricao": "Padrões que nunca podem aparecer na vitrine. Termos do projeto de origem NÃO entram aqui: ficam fora do repositório (secret VITRINE_PROIBIDOS no CI, arquivo local na máquina de quem gera o pacote).",
+  "padroes": [
+    { "id": "guid", "descricao": "GUID (assinatura, tenant, recurso)", "regex": "\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b", "flags": "i" },
+    { "id": "ocid", "descricao": "OCID da Oracle Cloud", "regex": "\\bocid1\\.[a-z0-9]+\\.[a-z0-9.]+", "flags": "i" },
+    { "id": "ipv4", "descricao": "Endereço IPv4 público", "regex": "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "flags": "" },
+    { "id": "email", "descricao": "Endereço de e-mail", "regex": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "flags": "" },
+    { "id": "host-de-nuvem", "descricao": "Hostname gerado por provedor (revela conta ou recurso)", "regex": "\\b[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.(?:workers\\.dev|pages\\.dev|azurestaticapps\\.net|azurewebsites\\.net|run\\.app|firebaseapp\\.com|web\\.app|appspot\\.com|firebasestorage\\.app|oraclecloud\\.com)\\b", "flags": "i" },
+    { "id": "chave-google", "descricao": "Chave de API do Google/Firebase", "regex": "AIza[0-9A-Za-z_\\-]{35}", "flags": "" },
+    { "id": "faturamento-google", "descricao": "Conta de faturamento do Google Cloud", "regex": "\\b[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}\\b", "flags": "" },
+    { "id": "token-github", "descricao": "Token do GitHub", "regex": "\\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})\\b", "flags": "" },
+    { "id": "chave-privada", "descricao": "Chave privada", "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----", "flags": "" },
+    { "id": "maquina-windows", "descricao": "Nome padrão de máquina Windows", "regex": "\\bDESKTOP-[A-Z0-9]{7}\\b", "flags": "" },
+    { "id": "caminho-de-usuario", "descricao": "Caminho com pasta de usuário", "regex": "(?:[A-Za-z]:\\\\Users\\\\|/home/|/Users/)[A-Za-z0-9._-]+", "flags": "" }
+  ],
+  "permitidos": [
+    { "padrao": "guid", "regex": "^0{8}-0{4}-0{4}-0{4}-0{12}$" },
+    { "padrao": "ipv4", "regex": "^(?:10\\.|127\\.|192\\.168\\.|172\\.(?:1[6-9]|2\\d|3[01])\\.|0\\.0\\.0\\.0|255\\.|192\\.0\\.2\\.|198\\.51\\.100\\.|203\\.0\\.113\\.)" },
+    { "padrao": "email", "regex": "^(?:noreply@github\\.com|noreply@anthropic\\.com|[^@]+@users\\.noreply\\.github\\.com|[^@]+@example\\.(?:com|org))$", "flags": "i" },
+    { "padrao": "host-de-nuvem", "regex": "^(?:exemplo|example|seu-app|<[^>]+>)\\.", "flags": "i" },
+    { "padrao": "caminho-de-usuario", "regex": "^(?:/home/runner|/home/ubuntu|/home/jules|/home/swebot)$" }
+  ],
+  "ignorar": ["ferramentas/padroes-genericos.json", "LICENSE"]
+}

@@ -1,0 +1,134 @@
+{
+  "versaoPacote": 1,
+  "geradoEm": "2026-10-25",
+  "arquitetura": {
+    "padrao": "offline-first com borda estática e nuvem só para identidade e dados",
+    "resumo": "O cliente roda inteiro no aparelho (nativo ou navegador) com banco local; a nuvem entrega arquivos estáticos e cuida de identidade e, numa próxima etapa, da sincronização. Não há servidor de aplicação próprio: um backend só entra quando houver demanda medida.",
+    "componentes": [
+      { "id": "nucleo", "camada": "cliente", "tecnologia": ".NET 10 (bibliotecas de domínio e de dados)", "papel": "Regras de negócio e acesso a dados num só código, usado pelo app nativo e pela Web", "estado": "implementado", "conectaCom": ["banco-local"] },
+      { "id": "app-nativo", "camada": "cliente", "tecnologia": ".NET MAUI Blazor Hybrid (Android e Windows)", "papel": "App instalado; mesmas telas Razor da Web", "estado": "implementado", "conectaCom": ["nucleo"] },
+      { "id": "app-web", "camada": "cliente", "tecnologia": "Blazor WebAssembly como PWA, Tailwind CSS", "papel": "Mesmo app no navegador, com service worker para uso offline", "estado": "publicado", "conectaCom": ["nucleo", "borda-cloudflare", "borda-azure"] },
+      { "id": "banco-local", "camada": "dados-locais", "tecnologia": "SQLite por perfil, com migrações", "papel": "Fonte da verdade no aparelho; o app funciona sem rede", "estado": "implementado", "conectaCom": ["outbox"] },
+      { "id": "outbox", "camada": "dados-locais", "tecnologia": "Outbox Pattern na mesma transação da gravação", "papel": "Fila local de alterações, pronta para o envio à nuvem", "estado": "implementado", "conectaCom": ["firestore"] },
+      { "id": "backup-arquivo", "camada": "dados-locais", "tecnologia": "Exportação e importação em arquivo versionado", "papel": "Proteção dos dados antes de haver sincronização", "estado": "implementado" },
+      { "id": "identidade", "camada": "identidade", "tecnologia": "Firebase Authentication pela API REST", "papel": "Conta, sessão e bloqueio do app (com biometria no aparelho)", "estado": "implementado" },
+      { "id": "firestore", "camada": "dados-nuvem", "tecnologia": "Cloud Firestore com regras e índices versionados", "papel": "Destino da sincronização de envio e, depois, do recebimento entre aparelhos", "estado": "planejado" },
+      { "id": "borda-cloudflare", "camada": "borda", "tecnologia": "Cloudflare Workers com arquivos estáticos (sem script)", "papel": "Hospedagem principal da Web, com cabeçalhos de segurança gerados no deploy", "estado": "publicado" },
+      { "id": "borda-azure", "camada": "borda", "tecnologia": "Azure Static Web Apps (Free)", "papel": "Hospedagem anterior da Web; fica como reserva", "estado": "reserva" },
+      { "id": "runner-arm", "camada": "ci", "tecnologia": "GitHub Actions com runner próprio em VM Ampere A1 (ARM64)", "papel": "Build, testes e deploy sem consumir minutos pagos", "estado": "avaliado" },
+      { "id": "servidor-minimo", "camada": "computacao", "tecnologia": "Funções de nuvem ou serviço .NET na VM ARM", "papel": "Encerrar sessões em todos os aparelhos e excluir conta com todos os dados", "estado": "planejado" },
+      { "id": "emuladores", "camada": "operacao", "tecnologia": "Firebase Emulator Suite (Auth e Firestore)", "papel": "Alvo padrão de desenvolvimento e dos testes de integração", "estado": "implementado" }
+    ]
+  },
+  "nuvens": [
+    {
+      "provedor": "Cloudflare",
+      "regra": "Só recursos sem cobrança: requisições a arquivos estáticos não têm custo nem limite.",
+      "servicos": [
+        { "servico": "Workers (arquivos estáticos)", "sku": "Free", "estado": "publicado", "papel": "Hospedagem principal da Web", "observacao": "Fallback de SPA configurado no Worker; o arquivo de cabeçalhos é gerado a partir da configuração de segurança no deploy" }
+      ],
+      "protecoes": [
+        { "tipo": "sku-sem-excedente", "descricao": "Arquivos estáticos não são cobrados por requisição", "estado": "ativa" }
+      ]
+    },
+    {
+      "provedor": "Microsoft Azure",
+      "regra": "Gasto zero: só SKU Free. Assinatura paga por uso não aceita teto de gasto, então a proteção é negar o que não for Free.",
+      "servicos": [
+        {
+          "servico": "Static Web Apps", "sku": "Free", "regiao": "East US 2", "estado": "reserva", "papel": "Hospedagem anterior da Web",
+          "limites": [
+            { "recurso": "banda", "cota": 100, "unidade": "GB", "periodo": "mês por assinatura", "observacao": "No Free o site para de servir ao passar; não há excedente cobrado" },
+            { "recurso": "armazenamento por ambiente", "cota": 250, "unidade": "MB", "periodo": "total" },
+            { "recurso": "ambientes de preview", "cota": 3, "unidade": "ambientes", "periodo": "total" }
+          ]
+        },
+        { "servico": "App Service", "sku": "F1 (Linux)", "estado": "legado", "papel": "Recurso anterior, sem uso", "observacao": "Sem SLA; a Microsoft não suporta produção no F1" }
+      ],
+      "protecoes": [
+        { "tipo": "policy", "descricao": "Azure Policy no escopo da assinatura nega Static Web Apps e planos do App Service fora do Free", "estado": "ativa", "verificacao": "Validação de implantação: Standard e B1 negados, Free aceito", "arquivo": "finops/azure/politica-somente-free.json" }
+      ]
+    },
+    {
+      "provedor": "Oracle Cloud (OCI)",
+      "regra": "Gasto zero: só Always Free, na região principal. Uma cota de tenancy bloqueia o que passa disso e um orçamento avisa de qualquer cobrança.",
+      "servicos": [
+        {
+          "servico": "Compute Ampere A1 (VM.Standard.A1.Flex)", "sku": "Always Free", "regiao": "sa-saopaulo-1", "estado": "em-teste", "papel": "Runner de CI ARM64 e, se a demanda pedir, servidor mínimo",
+          "limites": [
+            { "recurso": "OCPU-hora", "cota": 1500, "unidade": "OCPU-hora", "periodo": "mês", "observacao": "2 OCPU contínuos depois do corte de 2026; o teste confere se contas pagas mantêm 4" },
+            { "recurso": "memória", "cota": 9000, "unidade": "GB-hora", "periodo": "mês", "observacao": "12 GB contínuos" }
+          ],
+          "observacao": "A Oracle pode recolher instância ociosa (percentil 95 de CPU, rede e memória abaixo de 20% em 7 dias)"
+        },
+        { "servico": "Block Volume", "sku": "Always Free", "estado": "em-teste", "papel": "Disco de boot da VM", "limites": [ { "recurso": "boot e bloco", "cota": 200, "unidade": "GB", "periodo": "total" }, { "recurso": "backups", "cota": 5, "unidade": "backups", "periodo": "total" } ] }
+      ],
+      "protecoes": [
+        { "tipo": "quota", "descricao": "Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional", "estado": "ativa", "verificacao": "resource-availability mostra só o A1 disponível; outras formas em 0", "arquivo": "finops/oci/cota-somente-gratuito.txt" },
+        { "tipo": "budget", "descricao": "Orçamento mensal de 1 com alerta a partir de 0,01 de gasto real", "estado": "ativa", "arquivo": "finops/oci/orcamento.json" }
+      ]
+    },
+    {
+      "provedor": "Google Cloud / Firebase",
+      "regra": "Gasto zero no plano Blaze: o uso fica abaixo da cota sem custo; o Google não tem limite que bloqueie gasto, só alerta de orçamento.",
+      "servicos": [
+        { "servico": "Firebase Authentication", "sku": "Blaze (cota sem custo)", "estado": "implementado", "papel": "Identidade", "limites": [ { "recurso": "usuários ativos mensais", "cota": 50000, "unidade": "MAU", "periodo": "mês" }, { "recurso": "SMS", "cota": 0, "unidade": "SMS", "periodo": "mês", "observacao": "Login por telefone não é habilitado: é cobrado desde o primeiro SMS" } ] },
+        { "servico": "Cloud Firestore", "sku": "Blaze (cota sem custo)", "regiao": "southamerica-east1", "estado": "planejado", "papel": "Sincronização", "limites": [ { "recurso": "leituras", "cota": 50000, "unidade": "documentos", "periodo": "dia" }, { "recurso": "gravações", "cota": 20000, "unidade": "documentos", "periodo": "dia" }, { "recurso": "armazenado", "cota": 1, "unidade": "GiB", "periodo": "total", "observacao": "Só o banco (default); um segundo banco é cobrado" } ] },
+        { "servico": "Cloud Build", "sku": "Gratuito", "estado": "avaliado", "papel": "Build x64 do Android, que não roda no runner ARM", "limites": [ { "recurso": "minutos de build", "cota": 2500, "unidade": "min", "periodo": "mês" } ] },
+        { "servico": "Cloud Run", "estado": "legado", "papel": "Backend de uma versão anterior, mínimo de 0 instâncias, sem uso" }
+      ],
+      "protecoes": [
+        { "tipo": "alerta", "descricao": "Orçamento com alerta na conta de faturamento", "estado": "planejada" }
+      ]
+    }
+  ],
+  "finops": {
+    "limiteOperacionalPercentual": 80,
+    "medicoes": [
+      { "nome": "primeira visita à Web", "valor": 4.08, "unidade": "MB (brotli)", "como": "Medido no navegador: cerca de 80 requisições" },
+      { "nome": "visita repetida com service worker", "valor": 7, "unidade": "KB", "como": "Medido no navegador" },
+      { "nome": "banda por usuário ativo", "valor": 12.8, "unidade": "MB/mês", "como": "Estimado: cada publicação invalida todos os arquivos (mesmo ETag)" },
+      { "nome": "usuários ativos que cabem no SWA Free", "valor": 7800, "unidade": "MAU", "como": "100 GB/mês divididos pela banda por usuário" },
+      { "nome": "publish da Web no runner ARM", "valor": 45, "unidade": "s", "como": "Medido na VM A1" },
+      { "nome": "testes .NET no runner ARM", "valor": 977, "unidade": "testes verdes", "como": "Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1)" }
+    ],
+    "gatilhosDeReavaliacao": [
+      "Web acima de 80 GB/mês: reavaliar CDN de outro provedor",
+      "Firestore perto de 40 mil leituras/dia: reavaliar o banco na nuvem",
+      "Cobrança de compute na OCI durante o teste do A1: voltar para 2 OCPU e 12 GB"
+    ]
+  },
+  "qualidade": {
+    "suites": [
+      { "nome": "Unidade e integração do núcleo", "ferramenta": "xUnit", "alvo": ".NET", "quantidade": 584 },
+      { "nome": "Integração contra emulador", "ferramenta": "xUnit + Firebase Auth Emulator", "alvo": ".NET", "quantidade": 5 },
+      { "nome": "Componentes Razor", "ferramenta": "bUnit", "alvo": ".NET", "quantidade": 418 },
+      { "nome": "Ponta a ponta na Web", "ferramenta": "Playwright", "alvo": "Web em 3 larguras (celular, tablet, desktop)", "quantidade": 77 },
+      { "nome": "Ponta a ponta no app Windows", "ferramenta": "Playwright via CDP no WebView2", "alvo": "Windows", "quantidade": 3 },
+      { "nome": "Auditoria de layout no Android", "ferramenta": "Playwright + adb pelo USB", "alvo": "Android real", "quantidade": 8, "observacao": "Telas auditadas: rolagem, elementos fora da tela, desalinhados, alvos de toque abaixo de 40 px" }
+    ],
+    "praticas": [
+      "TDD: o teste falha pelo motivo certo antes da implementação",
+      "Avisos de compilação tratados como erro; documentação XML exigida no CI",
+      "Cabeçalhos de segurança e CSP testados no ponta a ponta",
+      "Firebase local (emuladores) como alvo padrão; o projeto real só quando o emulador não responde",
+      "Documentação por arquivo num espelho da árvore, com invariantes e motivos, não assinaturas"
+    ]
+  },
+  "processo": [
+    "Cada entrega passa por especificação, plano, execução com TDD, revisão independente e correções com teste",
+    "Achados menores de revisão ficam registrados com dono e momento de resolver",
+    "Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão)",
+    "Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%"
+  ],
+  "roteiro": [
+    { "item": "Migrar a landing page para a Cloudflare", "estado": "planejado" },
+    { "item": "CI com GitHub Actions no runner ARM: build, testes, preview por branch e produção na Cloudflare", "estado": "planejado" },
+    { "item": "Sincronização de envio (outbox para o Firestore) com regras testadas no emulador", "estado": "planejado" },
+    { "item": "Recebimento entre aparelhos com regra de conflito", "estado": "planejado" },
+    { "item": "Servidor mínimo: Functions ou .NET na VM ARM", "estado": "planejado", "condicao": "Depende da estimativa de clientes e de desempenho igual ou melhor" },
+    { "item": "APIs em contêineres na OCI atrás de Cloudflare Tunnel, acesso administrativo por Tailscale, PostgreSQL e Redis", "estado": "planejado", "condicao": "Topologia original desta vitrine; entra quando houver backend com carga medida" },
+    { "item": "Alerta de orçamento no Google Cloud", "estado": "planejado" },
+    { "item": "AWS e Alibaba Cloud", "estado": "descartado", "condicao": "Reavaliar nos gatilhos de finops" }
+  ]
+}
