@@ -52,7 +52,7 @@ for (const [status, caminho] of mudancas) {
   const texto = mostrar(caminho) ?? "";
   if (!/^# \d{4} · .+/m.test(texto)) motivos.push(`R3 \`${caminho}\`: o título deve ser "# NNNN · Título".`);
   for (const secao of ["Estado", "Contexto", "Decisão"])
-    if (!new RegExp(`^- \\*\\*${secao}:\\*\\*`, "m").test(texto)) motivos.push(`R3 \`${caminho}\`: falta a seção "- **${secao}:**".`);
+    if (!new RegExp(String.raw`^- \*\*${secao}:\*\*`, "m").test(texto)) motivos.push(`R3 \`${caminho}\`: falta a seção "- **${secao}:**".`);
 }
 
 // R4: todos os marcadores de blocos gerados continuam no README.
@@ -91,18 +91,19 @@ for (const l of git("diff", "--unified=0", "--no-color", base, head, "--", "READ
 const corpus = [
   ...git("ls-tree", "-r", "--name-only", head, "fontes", "finops").split("\n").filter(Boolean),
 ].map((c) => mostrar(c) ?? "").join("\n");
+// "7.800" é milhar (pt-BR), "12,8" e "4.08" são decimais; cada forma vira um valor normalizado.
 const formas = (t) => {
-  const s = new Set([t]);
-  s.add(t.replace(",", "."));
-  s.add(t.replace(/\./g, "").replace(",", "."));
-  s.add(t.replace(/,/g, ""));
+  const s = new Set();
+  if (/^\d{1,3}(?:\.\d{3})+$/.test(t)) s.add(t.replaceAll(".", ""));
+  else if (/^\d{1,3}(?:,\d{3})+$/.test(t)) s.add(t.replaceAll(",", ""));
+  else s.add(t.replace(",", "."));
   return [...s].map((x) => String(Number(x))).filter((x) => x !== "NaN");
 };
 const conhecidos = new Set((corpus.match(/\d+(?:[.,]\d+)*/g) ?? []).flatMap(formas));
 for (const a of adicionadas) {
   const limpo = a.texto
     .replace(/https?:\/\/\S+/g, "")
-    .replace(/\(\S+\.md\)/g, "")
+    .replace(/\]\([^)]*\)/g, "]")
     .replace(/#\d+/g, "")
     .replace(/\b\d{4}-\d{2}-\d{2}\b/g, "")
     .replace(/^#+ \d{4} · /, "")
@@ -119,8 +120,9 @@ const capacidade = /\bRPS\b|requisi[cç][oõ]es por segundo|\bSLA de\b|99[.,]9+\
 for (const a of adicionadas)
   if (capacidade.test(a.texto)) motivos.push(`R6 ${a.arquivo}:${a.n}: afirmação de capacidade sem medição nas fontes.`);
 
+const listaDeMotivos = motivos.map((m) => "- " + m).join("\n");
 const relatorio = motivos.length
-  ? `### Regras determinísticas: reprovado\n\n${motivos.map((m) => `- ${m}`).join("\n")}\n`
+  ? `### Regras determinísticas: reprovado\n\n${listaDeMotivos}\n`
   : "### Regras determinísticas: aprovado\n\nNenhuma regra violada.\n";
 if (saida) writeFileSync(saida, relatorio);
 console.log(relatorio);

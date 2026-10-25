@@ -38,6 +38,6 @@ jobs:
           proibidos=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^(fontes/|ferramentas/|\.github/|AGENTS\.md$)' || true)
           if [ -n "$proibidos" ]; then echo "Caminhos protegidos alterados:"; echo "$proibidos"; exit 1; fi
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

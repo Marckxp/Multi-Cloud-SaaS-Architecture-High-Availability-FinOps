@@ -1,8 +1,8 @@
 name: revisor
 
-# Revisa PRs de agentes (branch jules-*) antes do merge automático: regras determinísticas e
-# revisão semântica pelo Claude (.github/revisor/instrucoes.md). O resultado vira o check
-# "revisao", exigido pelo ruleset da main. PRs humanos recebem "revisao" verde na hora.
+# Revisa PRs de agentes (branch jules-*) antes do merge automático: regras determinísticas,
+# quality gate do SonarQube Cloud e revisão semântica pelo Claude (.github/revisor/instrucoes.md).
+# O resultado vira o check "revisao", exigido pelo ruleset da main. PRs humanos recebem "revisao" verde na hora.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -45,11 +45,18 @@ jobs:
         if: env.EH_AGENTE == 'true'
         continue-on-error: true
         run: node ferramentas/revisar-pr-jules.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --saida regras.md
+      - name: SonarQube Cloud
+        id: sonar
+        if: env.EH_AGENTE == 'true' && steps.regras.outcome == 'success'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJETO: Marckxp_Multi-Cloud-SaaS-Architecture-High-Availability-FinOps
+        run: node .github/revisor/sonar.mjs
       - name: Revisão semântica
         id: claude
         if: env.EH_AGENTE == 'true' && steps.regras.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c # v1.0.242
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -65,6 +72,7 @@ jobs:
         if: always()
         env:
           REGRAS: ${{ steps.regras.outcome }}
+          SONAR: ${{ steps.sonar.outputs.resultado }}
           CLAUDE: ${{ steps.claude.outcome }}
         run: |
           if [ ! -f .github/revisor/veredito.mjs ]; then echo "A base ainda não tem o revisor (PR que o introduz)."; exit 0; fi

@@ -7,14 +7,15 @@
 //                    esgotadas: bloqueia o merge, tira o merge automático e chama uma pessoa,
 //                    sem fazer o agente "consertar" o que não é erro dele
 //
-// Ambiente: GH_TOKEN, GH_REPO, PR, HEAD_SHA, EH_AGENTE, REGRAS (outcome), CLAUDE (outcome).
+// Ambiente: GH_TOKEN, GH_REPO, PR, HEAD_SHA, EH_AGENTE e o outcome de cada etapa: REGRAS,
+// SONAR (success = gate aprovado, failure = gate reprovado, outro = falha da consulta), CLAUDE.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const MAX_TENTATIVAS = 3;
 const MARCADOR = "<!-- revisor:reprovado -->";
-const { GH_REPO, PR, HEAD_SHA, EH_AGENTE, REGRAS, CLAUDE } = process.env;
+const { GH_REPO, PR, HEAD_SHA, EH_AGENTE, REGRAS, SONAR, CLAUDE } = process.env;
 const gh = (...a) => execFileSync("gh", a, { encoding: "utf8" });
 
 function publicar(conclusao, titulo, resumo) {
@@ -46,9 +47,16 @@ const regras = existsSync("regras.md") ? readFileSync("regras.md", "utf8") : "";
 const anteriores = JSON.parse(gh("pr", "view", PR, "--repo", GH_REPO, "--json", "comments"))
   .comments.filter((c) => c.body.includes(MARCADOR)).length;
 
+// sonar.md é escrito por sonar.mjs: quality gate do SonarQube Cloud e achados novos do PR.
+const sonar = existsSync("sonar.md") ? readFileSync("sonar.md", "utf8") : "";
+
 let motivos = null;
 if (REGRAS !== "success") {
   motivos = regras || "As regras determinísticas falharam sem relatório; veja o log do job.";
+} else if (SONAR !== "success" && SONAR !== "failure") {
+  chamarPessoa("falha na consulta ao SonarQube Cloud",
+    `O quality gate do PR não pôde ser lido (resultado: \`${SONAR || "não rodou"}\`). ${sonar}Confira o secret \`SONAR_TOKEN\` e se a análise do Sonar terminou, e rode o job de novo.`);
+  process.exit(0);
 } else if (CLAUDE !== "success" || !existsSync("revisao.json")) {
   chamarPessoa("falha do revisor semântico",
     `A revisão semântica não terminou (resultado: \`${CLAUDE || "não rodou"}\`). Confira o secret \`CLAUDE_CODE_OAUTH_TOKEN\` e os limites da assinatura, e rode o job de novo. As regras determinísticas passaram.`);
@@ -62,13 +70,20 @@ if (REGRAS !== "success") {
     chamarPessoa("saída inválida do revisor semântico", `\`revisao.json\` não pôde ser lido: ${e.message}.`);
     process.exit(0);
   }
-  const obs = (r.observacoes ?? []).map((o) => `- ${o}`).join("\n");
-  if (r.veredito === "aprovado") {
-    publicar("success", "aprovado", `${regras}\n### Revisão semântica: aprovado\n${obs ? `\nObservações (não bloqueiam):\n${obs}\n` : ""}`);
+  const obs = (r.observacoes ?? []).map((o) => "- " + o).join("\n");
+  const blocoObs = obs ? "\nObservações (não bloqueiam):\n" + obs + "\n" : "";
+  if (r.veredito === "aprovado" && SONAR === "success") {
+    publicar("success", "aprovado", `${regras}\n${sonar}\n### Revisão semântica: aprovado\n${blocoObs}`);
     process.exit(0);
   }
-  const lista = (r.motivos ?? []).map((m) => `- \`${m.arquivo}${m.linha ? `:${m.linha}` : ""}\` (critério ${m.criterio}): ${m.problema} **Corrija:** ${m.correcao}`).join("\n");
-  motivos = `### Revisão semântica: reprovado\n\n${lista || "- (o revisor reprovou sem listar motivos)"}`;
+  const partes = [];
+  if (SONAR === "failure") partes.push(sonar);
+  if (r.veredito === "reprovado") {
+    const local = (m) => (m.linha ? `${m.arquivo}:${m.linha}` : m.arquivo);
+    const lista = (r.motivos ?? []).map((m) => `- \`${local(m)}\` (critério ${m.criterio}): ${m.problema} **Corrija:** ${m.correcao}`).join("\n");
+    partes.push(`### Revisão semântica: reprovado\n\n${lista || "- (o revisor reprovou sem listar motivos)"}`);
+  }
+  motivos = partes.join("\n\n");
 }
 
 if (anteriores + 1 >= MAX_TENTATIVAS) {
