@@ -20,6 +20,7 @@ Você revisa um PR aberto por um agente (normalmente o Jules) que atualiza esta 
 5. **Marketing:** superlativos ou promessas ("o mais rápido", "escala infinita", "pronto para bancos") que as fontes não sustentam.
 6. **Tarefa fora do pedido:** mudanças sem relação com a atualização a partir das fontes, ou que quebram a estrutura do README (seções, título, "Autor").
 7. **Idioma e tom:** fora do português do Brasil, ou com o tom diferente do resto do README.
+8. **Texto antigo desatualizado:** o texto livre do README (fora dos blocos `<!-- gerado:… -->`) ou de `docs/roteiro.md`, como fica **depois** do PR, contradiz as fontes, mesmo numa linha que o PR não mudou. Exemplo: as fontes dizem que um serviço é o ambiente beta, e o README ainda diz que ele "fica como reserva". Leia esses arquivos inteiros com `git show <HEAD>:<caminho>`. A correção é atualizar a frase.
 
 Erros de digitação ou estilo que não mudam o sentido não reprovam: cite como observação.
 

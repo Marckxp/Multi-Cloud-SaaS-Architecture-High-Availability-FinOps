@@ -20,7 +20,7 @@ Fatos de 2026-10-25 (pacote v2).
 Não há um cluster para manter de pé. A disponibilidade vem de três escolhas:
 
 1. **Offline-first:** o app (nativo ou Web) grava num banco local e funciona sem rede. Uma falha da nuvem não interrompe o uso. As alterações ficam numa outbox até poderem ser enviadas.
-2. **Borda estática sem limite de requisições:** a Web é um conjunto de arquivos estáticos servido pela borda da Cloudflare. O Azure Static Web Apps fica como reserva, já configurado.
+2. **Borda estática sem limite de requisições:** a Web é um conjunto de arquivos estáticos servido pela borda da Cloudflare. O Azure Static Web Apps, já configurado, é o ambiente beta e a reserva da produção.
 3. **Nenhum servidor de aplicação próprio** até haver demanda medida (ver [ADR 0006](docs/adr/0006-backend-sob-demanda.md)).
 
 ## Topologia

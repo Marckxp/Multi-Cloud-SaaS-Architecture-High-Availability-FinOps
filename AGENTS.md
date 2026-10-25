@@ -17,7 +17,7 @@ Ela é acionada por uma issue com a etiqueta `jules`, criada (em nome do dono do
 1. Leia `fontes/estado.json`, `fontes/decisoes/*.md` e o que mudou nas fontes no último commit da `main` (`git log -1 -p -- fontes/`).
 2. Valide as fontes: `node ferramentas/verificar-fontes.mjs`. Se falhar, **pare** e relate na issue; não conserte as fontes.
 3. Regenere os blocos de dados do README: `node ferramentas/gerar-readme.mjs`. Nunca escreva à mão o conteúdo entre `<!-- gerado:X:inicio -->` e `<!-- gerado:X:fim -->`.
-4. Atualize o texto livre do `README.md` (fora dos marcadores) só onde ele contradiz as fontes. Mantenha o título, a seção "Autor" e o tom: frases curtas, sem marketing, sem números que não estejam nas fontes.
+4. Leia o `README.md` e o `docs/roteiro.md` **inteiros** e atualize o texto livre (fora dos marcadores) onde ele contradiz as fontes, inclusive em frases que você não ia mexer: o revisor reprova texto antigo desatualizado (critério 8). Mantenha o título, a seção "Autor" e o tom: frases curtas, sem marketing, sem números que não estejam nas fontes.
 5. Para cada arquivo de `fontes/decisoes/` novo ou alterado, crie ou atualize o ADR de mesmo nome em `docs/adr/`. O formato é: título com o número, **Estado**, **Contexto**, **Decisão**, **Consequências** e, se houver, **Evidência** e **Gatilhos**. Uma decisão removida das fontes vira ADR com "Estado: substituída", nunca é apagada.
 6. Se uma proteção de `nuvens[].protecoes[]` apontar um `arquivo` em `finops/`, confira se o arquivo existe e se a descrição em `finops/README.md` bate com ele. Use `<MARCADOR>` para qualquer valor de conta.
 7. Se o `roteiro` mudar, atualize `docs/roteiro.md` só nas condições; a topologia original continua lá, marcada como planejada.
