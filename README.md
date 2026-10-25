@@ -10,7 +10,7 @@ Esta é a arquitetura de referência de um SaaS em produção inicial, desenhado
 > **Nota:** a lógica de negócio e o produto ficam em repositório privado. Tudo o que está aqui foi extraído de fatos verificados do projeto real (`fontes/`), sem identificadores de contas nem regras de negócio. Nenhum número desta página é estimativa de marketing: cada um tem a forma de medição ao lado.
 
 <!-- gerado:atualizado:inicio -->
-Fatos de 2026-10-25 (pacote v1).
+Fatos de 2026-10-25 (pacote v2).
 <!-- gerado:atualizado:fim -->
 
 ---
@@ -41,7 +41,7 @@ flowchart LR
   end
   subgraph c_borda["Borda"]
     borda_cloudflare["Cloudflare Workers com arquivos estáticos (sem script)"]:::publicado
-    borda_azure["Azure Static Web Apps (Free)"]:::reserva
+    borda_azure["Azure Static Web Apps (Free)"]:::publicado
   end
   subgraph c_identidade["Identidade"]
     identidade["Firebase Authentication pela API REST"]:::implementado
@@ -63,7 +63,7 @@ flowchart LR
   app_nativo --> nucleo
   app_web --> nucleo
   app_web --> borda_cloudflare
-  app_web -.-> borda_azure
+  app_web --> borda_azure
   banco_local --> outbox
   outbox -.-> firestore
   classDef publicado fill:#1f883d,color:#fff,stroke:#116329
@@ -90,7 +90,7 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 | Identidade | Firebase Authentication pela API REST | Conta, sessão e bloqueio do app (com biometria no aparelho) | 🟢 implementado |
 | Dados na nuvem | Cloud Firestore com regras e índices versionados | Destino da sincronização de envio e, depois, do recebimento entre aparelhos | ⚪ planejado |
 | Borda | Cloudflare Workers com arquivos estáticos (sem script) | Hospedagem principal da Web, com cabeçalhos de segurança gerados no deploy | 🟢 publicado |
-| Borda | Azure Static Web Apps (Free) | Hospedagem anterior da Web; fica como reserva | 🟠 reserva |
+| Borda | Azure Static Web Apps (Free) | Ambiente beta da Web e reserva da produção | 🟢 publicado |
 | CI | GitHub Actions com runner próprio em VM Ampere A1 (ARM64) | Build, testes e deploy sem consumir minutos pagos | 🔵 avaliado |
 | Computação | Funções de nuvem ou serviço .NET na VM ARM | Encerrar sessões em todos os aparelhos e excluir conta com todos os dados | ⚪ planejado |
 | Operação | Firebase Emulator Suite (Auth e Firestore) | Alvo padrão de desenvolvimento e dos testes de integração | 🟢 implementado |
@@ -113,7 +113,7 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 
 | Serviço | SKU | Região | Papel | Estado |
 |---|---|---|---|---|
-| Static Web Apps | Free | East US 2 | Hospedagem anterior da Web | 🟠 reserva |
+| Static Web Apps | Free | East US 2 | Ambiente beta da Web e reserva da produção | 🟢 publicado |
 | App Service | F1 (Linux) | — | Recurso anterior, sem uso | ⚫ legado |
 
 #### Oracle Cloud (OCI)
@@ -134,7 +134,8 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 | Firebase Authentication | Blaze (cota sem custo) | — | Identidade | 🟢 implementado |
 | Cloud Firestore | Blaze (cota sem custo) | southamerica-east1 | Sincronização | ⚪ planejado |
 | Cloud Build | Gratuito | — | Build x64 do Android, que não roda no runner ARM | 🔵 avaliado |
-| Cloud Run | — | — | Backend de uma versão anterior, mínimo de 0 instâncias, sem uso | ⚫ legado |
+| Firebase (projeto do ambiente beta) | Spark (sem faturamento) | — | Identidade do ambiente beta, separada da produção | 🟢 publicado |
+| Cloud Run | — | — | Backend de uma versão anterior, mínimo de 0 instâncias | ⚫ legado |
 <!-- gerado:nuvens:fim -->
 
 ## FinOps: custo zero como código
@@ -148,7 +149,8 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 | Microsoft Azure | policy | Azure Policy no escopo da assinatura nega Static Web Apps e planos do App Service fora do Free (conferido: Validação de implantação: Standard e B1 negados, Free aceito) | ativa | [finops/azure/politica-somente-free.json](finops/azure/politica-somente-free.json) |
 | Oracle Cloud (OCI) | quota | Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional (conferido: resource-availability mostra só o A1 disponível; outras formas em 0) | ativa | [finops/oci/cota-somente-gratuito.txt](finops/oci/cota-somente-gratuito.txt) |
 | Oracle Cloud (OCI) | budget | Orçamento mensal de 1 com alerta a partir de 0,01 de gasto real | ativa | [finops/oci/orcamento.json](finops/oci/orcamento.json) |
-| Google Cloud / Firebase | alerta | Orçamento com alerta na conta de faturamento | planejada | — |
+| Google Cloud / Firebase | budget | Orçamento mensal de R$ 1 filtrado para o projeto do app, com alertas em 1%, 50% e 100% | ativa | — |
+| Google Cloud / Firebase | sku-sem-excedente | O ambiente beta usa um projeto Firebase no plano Spark: ao bater a cota, ele para em vez de cobrar | ativa | — |
 <!-- gerado:protecoes:fim -->
 
 ### Medições
@@ -159,9 +161,12 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 | primeira visita à Web | 4,08 MB (brotli) | Medido no navegador: cerca de 80 requisições |
 | visita repetida com service worker | 7 KB | Medido no navegador |
 | banda por usuário ativo | 12,8 MB/mês | Estimado: cada publicação invalida todos os arquivos (mesmo ETag) |
+| parte da banda que vem das atualizações | 64 % | Estimado a partir da banda por usuário e da frequência de publicação |
 | usuários ativos que cabem no SWA Free | 7.800 MAU | 100 GB/mês divididos pela banda por usuário |
 | publish da Web no runner ARM | 45 s | Medido na VM A1 |
 | testes .NET no runner ARM | 977 testes verdes | Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1) |
+| publicação na Cloudflare | 1 min | Medido com o build no PC |
+| arquivos enviados numa publicação incremental | 10 de 78 arquivos | Medido no envio do Wrangler: só os arquivos mudados sobem |
 
 Limite operacional: alerta em **80%** de cada cota gratuita.
 
@@ -178,14 +183,17 @@ Gatilhos de reavaliação:
 |---|---|---|---|
 | Unidade e integração do núcleo | xUnit | .NET | 584 |
 | Integração contra emulador | xUnit + Firebase Auth Emulator | .NET | 5 |
-| Componentes Razor | bUnit | .NET | 418 |
-| Ponta a ponta na Web | Playwright | Web em 3 larguras (celular, tablet, desktop) | 77 |
+| Componentes Razor | bUnit | .NET | 433 |
+| Ponta a ponta na Web | Playwright | Web em 3 larguras (celular, tablet, desktop) | 83 |
 | Ponta a ponta no app Windows | Playwright via CDP no WebView2 | Windows | 3 |
 | Auditoria de layout no Android | Playwright + adb pelo USB | Android real | 8 |
 
 - TDD: o teste falha pelo motivo certo antes da implementação
 - Avisos de compilação tratados como erro; documentação XML exigida no CI
 - Cabeçalhos de segurança e CSP testados no ponta a ponta
+- Service worker testado no ponta a ponta: volta ao app pelo cache e abertura sem rede
+- Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline
+- Quality gate do SonarQube Cloud nos pull requests
 - Firebase local (emuladores) como alvo padrão; o projeto real só quando o emulador não responde
 - Documentação por arquivo num espelho da árvore, com invariantes e motivos, não assinaturas
 <!-- gerado:qualidade:fim -->
@@ -195,7 +203,9 @@ Gatilhos de reavaliação:
 <!-- gerado:processo:inicio -->
 - Cada entrega passa por especificação, plano, execução com TDD, revisão independente e correções com teste
 - Achados menores de revisão ficam registrados com dono e momento de resolver
-- Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão)
+- Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão, depuração, pesquisa em documentação, nuvem)
+- Cada agente tem modelo e nível de esforço definidos pelo tipo de trabalho, e uma orquestração decide o que roda em paralelo e como avaliar o que volta
+- Esta vitrine é atualizada por um pacote de fatos saneado, um agente que escreve (Jules) e um revisor automático (regras, SonarQube Cloud e Claude) que aprova ou devolve o PR
 - Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%
 <!-- gerado:processo:fim -->
 
@@ -209,12 +219,13 @@ As decisões e o contexto de cada uma estão em [`docs/adr/`](docs/adr/).
 | Item | Estado | Condição |
 |---|---|---|
 | Migrar a landing page para a Cloudflare | ⚪ planejado | — |
+| Domínio próprio: produção na Cloudflare e o Azure de volta a reserva, com troca pelo DNS | ⚪ planejado | — |
+| Excluir o backend legado do Cloud Run | ⚪ planejado | — |
 | CI com GitHub Actions no runner ARM: build, testes, preview por branch e produção na Cloudflare | ⚪ planejado | — |
 | Sincronização de envio (outbox para o Firestore) com regras testadas no emulador | ⚪ planejado | — |
 | Recebimento entre aparelhos com regra de conflito | ⚪ planejado | — |
 | Servidor mínimo: Functions ou .NET na VM ARM | ⚪ planejado | Depende da estimativa de clientes e de desempenho igual ou melhor |
 | APIs em contêineres na OCI atrás de Cloudflare Tunnel, acesso administrativo por Tailscale, PostgreSQL e Redis | ⚪ planejado | Topologia original desta vitrine; entra quando houver backend com carga medida |
-| Alerta de orçamento no Google Cloud | ⚪ planejado | — |
 | AWS e Alibaba Cloud | ✖️ descartado | Reavaliar nos gatilhos de finops |
 <!-- gerado:roteiro:fim -->
 
