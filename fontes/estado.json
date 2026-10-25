@@ -1,5 +1,5 @@
 {
-  "versaoPacote": 2,
+  "versaoPacote": 3,
   "geradoEm": "2026-10-25",
   "arquitetura": {
     "padrao": "offline-first com borda estática e nuvem só para identidade e dados",
@@ -13,8 +13,8 @@
       { "id": "backup-arquivo", "camada": "dados-locais", "tecnologia": "Exportação e importação em arquivo versionado", "papel": "Proteção dos dados antes de haver sincronização", "estado": "implementado" },
       { "id": "identidade", "camada": "identidade", "tecnologia": "Firebase Authentication pela API REST", "papel": "Conta, sessão e bloqueio do app (com biometria no aparelho)", "estado": "implementado" },
       { "id": "firestore", "camada": "dados-nuvem", "tecnologia": "Cloud Firestore com regras e índices versionados", "papel": "Destino da sincronização de envio e, depois, do recebimento entre aparelhos", "estado": "planejado" },
-      { "id": "borda-cloudflare", "camada": "borda", "tecnologia": "Cloudflare Workers com arquivos estáticos (sem script)", "papel": "Hospedagem principal da Web, com cabeçalhos de segurança gerados no deploy", "estado": "publicado" },
-      { "id": "borda-azure", "camada": "borda", "tecnologia": "Azure Static Web Apps (Free)", "papel": "Ambiente beta da Web e reserva da produção", "estado": "publicado" },
+      { "id": "borda-cloudflare", "camada": "borda", "tecnologia": "Cloudflare Workers com arquivos estáticos (sem script)", "papel": "Hospedagem principal da Web e do site da landing page, com cabeçalhos de segurança gerados no deploy", "estado": "publicado" },
+      { "id": "borda-azure", "camada": "borda", "tecnologia": "Azure Static Web Apps (Free)", "papel": "Ambiente beta da Web, reserva da produção e o site anterior da landing page até a troca", "estado": "publicado" },
       { "id": "runner-arm", "camada": "ci", "tecnologia": "GitHub Actions com runner próprio em VM Ampere A1 (ARM64)", "papel": "Build, testes e deploy sem consumir minutos pagos", "estado": "avaliado" },
       { "id": "servidor-minimo", "camada": "computacao", "tecnologia": "Funções de nuvem ou serviço .NET na VM ARM", "papel": "Encerrar sessões em todos os aparelhos e excluir conta com todos os dados", "estado": "planejado" },
       { "id": "emuladores", "camada": "operacao", "tecnologia": "Firebase Emulator Suite (Auth e Firestore)", "papel": "Alvo padrão de desenvolvimento e dos testes de integração", "estado": "implementado" }
@@ -25,7 +25,8 @@
       "provedor": "Cloudflare",
       "regra": "Só recursos sem cobrança: requisições a arquivos estáticos não têm custo nem limite.",
       "servicos": [
-        { "servico": "Workers (arquivos estáticos)", "sku": "Free", "estado": "publicado", "papel": "Hospedagem principal da Web", "observacao": "Fallback de SPA configurado no Worker; o arquivo de cabeçalhos é gerado a partir da configuração de segurança no deploy" }
+        { "servico": "Workers (arquivos estáticos)", "sku": "Free", "estado": "publicado", "papel": "Hospedagem principal da Web", "observacao": "Fallback de SPA configurado no Worker e tratamento de HTML desligado, para a borda não redirecionar /index.html; o arquivo de cabeçalhos é gerado a partir da configuração de segurança no deploy" },
+        { "servico": "Workers (arquivos estáticos)", "sku": "Free", "estado": "publicado", "papel": "Site da landing page", "observacao": "Arquivos estáticos com cabeçalhos de segurança; o site anterior, no Azure, continua no ar até a troca" }
       ],
       "protecoes": [
         { "tipo": "sku-sem-excedente", "descricao": "Arquivos estáticos não são cobrados por requisição", "estado": "ativa" }
@@ -36,7 +37,7 @@
       "regra": "Gasto zero: só SKU Free. Assinatura paga por uso não aceita teto de gasto, então a proteção é negar o que não for Free.",
       "servicos": [
         {
-          "servico": "Static Web Apps", "sku": "Free", "regiao": "East US 2", "estado": "publicado", "papel": "Ambiente beta da Web e reserva da produção",
+          "servico": "Static Web Apps", "sku": "Free", "regiao": "East US 2", "estado": "publicado", "papel": "Ambiente beta da Web, reserva da produção e o site anterior da landing page até a troca para a Cloudflare",
           "limites": [
             { "recurso": "banda", "cota": 100, "unidade": "GB", "periodo": "mês por assinatura", "observacao": "No Free o site para de servir ao passar; não há excedente cobrado" },
             { "recurso": "armazenamento por ambiente", "cota": 250, "unidade": "MB", "periodo": "total" },
@@ -76,7 +77,7 @@
         { "servico": "Cloud Firestore", "sku": "Blaze (cota sem custo)", "regiao": "southamerica-east1", "estado": "planejado", "papel": "Sincronização", "limites": [ { "recurso": "leituras", "cota": 50000, "unidade": "documentos", "periodo": "dia" }, { "recurso": "gravações", "cota": 20000, "unidade": "documentos", "periodo": "dia" }, { "recurso": "armazenado", "cota": 1, "unidade": "GiB", "periodo": "total", "observacao": "Só o banco (default); um segundo banco é cobrado" } ] },
         { "servico": "Cloud Build", "sku": "Gratuito", "estado": "avaliado", "papel": "Build x64 do Android, que não roda no runner ARM", "limites": [ { "recurso": "minutos de build", "cota": 2500, "unidade": "min", "periodo": "mês" } ] },
         { "servico": "Firebase (projeto do ambiente beta)", "sku": "Spark (sem faturamento)", "estado": "publicado", "papel": "Identidade do ambiente beta, separada da produção" },
-        { "servico": "Cloud Run", "estado": "legado", "papel": "Backend de uma versão anterior, mínimo de 0 instâncias", "observacao": "Zero requisições em 365 dias e nenhuma referência no código; exclusão decidida" }
+        { "servico": "Cloud Run", "estado": "descartado", "papel": "Backend de uma versão anterior", "observacao": "Apagado junto com o repositório de imagens: zero requisições em 365 dias e nenhuma referência no código" }
       ],
       "protecoes": [
         { "tipo": "budget", "descricao": "Orçamento mensal de R$ 1 filtrado para o projeto do app, com alertas em 1%, 50% e 100%", "estado": "ativa" },
@@ -95,7 +96,8 @@
       { "nome": "publish da Web no runner ARM", "valor": 45, "unidade": "s", "como": "Medido na VM A1" },
       { "nome": "testes .NET no runner ARM", "valor": 977, "unidade": "testes verdes", "como": "Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1)" },
       { "nome": "publicação na Cloudflare", "valor": 1, "unidade": "min", "como": "Medido com o build no PC" },
-      { "nome": "arquivos enviados numa publicação incremental", "valor": 10, "unidade": "de 78 arquivos", "como": "Medido no envio do Wrangler: só os arquivos mudados sobem" }
+      { "nome": "arquivos enviados numa publicação incremental", "valor": 10, "unidade": "de 78 arquivos", "como": "Medido no envio do Wrangler: só os arquivos mudados sobem" },
+      { "nome": "verificação pós-publicação da produção", "valor": 20, "unidade": "de 20 itens", "como": "Script num navegador limpo contra a Web de produção: service worker controlando, cache completo e abertura sem rede, entre outros" }
     ],
     "gatilhosDeReavaliacao": [
       "Web acima de 80 GB/mês: reavaliar CDN de outro provedor",
@@ -117,6 +119,7 @@
       "Avisos de compilação tratados como erro; documentação XML exigida no CI",
       "Cabeçalhos de segurança e CSP testados no ponta a ponta",
       "Service worker testado no ponta a ponta: volta ao app pelo cache e abertura sem rede",
+      "Service worker endurecido contra resposta redirecionada da borda, com redirecionamento simulado no ponta a ponta",
       "Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline",
       "Quality gate do SonarQube Cloud nos pull requests",
       "Firebase local (emuladores) como alvo padrão; o projeto real só quando o emulador não responde",
@@ -129,12 +132,11 @@
     "Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão, depuração, pesquisa em documentação, nuvem)",
     "Cada agente tem modelo e nível de esforço definidos pelo tipo de trabalho, e uma orquestração decide o que roda em paralelo e como avaliar o que volta",
     "Esta vitrine é atualizada por um pacote de fatos saneado, um agente que escreve (Jules) e um revisor automático (regras, SonarQube Cloud e Claude) que aprova ou devolve o PR",
-    "Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%"
+    "Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%",
+    "A operação das nuvens (publicar, conferir recursos, custos e cotas) passa por um agente de infraestrutura chamado pela sessão principal, com verificações obrigatórias e as armadilhas já vividas registradas"
   ],
   "roteiro": [
-    { "item": "Migrar a landing page para a Cloudflare", "estado": "planejado" },
     { "item": "Domínio próprio: produção na Cloudflare e o Azure de volta a reserva, com troca pelo DNS", "estado": "planejado" },
-    { "item": "Excluir o backend legado do Cloud Run", "estado": "planejado" },
     { "item": "CI com GitHub Actions no runner ARM: build, testes, preview por branch e produção na Cloudflare", "estado": "planejado" },
     { "item": "Sincronização de envio (outbox para o Firestore) com regras testadas no emulador", "estado": "planejado" },
     { "item": "Recebimento entre aparelhos com regra de conflito", "estado": "planejado" },
