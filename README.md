@@ -10,7 +10,7 @@ Esta é a arquitetura de referência de um SaaS em produção inicial, desenhado
 > **Nota:** a lógica de negócio e o produto ficam em repositório privado. Tudo o que está aqui foi extraído de fatos verificados do projeto real (`fontes/`), sem identificadores de contas nem regras de negócio. Nenhum número desta página é estimativa de marketing: cada um tem a forma de medição ao lado.
 
 <!-- gerado:atualizado:inicio -->
-Fatos de 2026-10-25 (pacote v2).
+Fatos de 2026-10-25 (pacote v3).
 <!-- gerado:atualizado:fim -->
 
 ---
@@ -89,8 +89,8 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 | Dados no aparelho | Exportação e importação em arquivo versionado | Proteção dos dados antes de haver sincronização | 🟢 implementado |
 | Identidade | Firebase Authentication pela API REST | Conta, sessão e bloqueio do app (com biometria no aparelho) | 🟢 implementado |
 | Dados na nuvem | Cloud Firestore com regras e índices versionados | Destino da sincronização de envio e, depois, do recebimento entre aparelhos | ⚪ planejado |
-| Borda | Cloudflare Workers com arquivos estáticos (sem script) | Hospedagem principal da Web, com cabeçalhos de segurança gerados no deploy | 🟢 publicado |
-| Borda | Azure Static Web Apps (Free) | Ambiente beta da Web e reserva da produção | 🟢 publicado |
+| Borda | Cloudflare Workers com arquivos estáticos (sem script) | Hospedagem principal da Web e do site da landing page, com cabeçalhos de segurança gerados no deploy | 🟢 publicado |
+| Borda | Azure Static Web Apps (Free) | Ambiente beta da Web, reserva da produção e o site anterior da landing page até a troca | 🟢 publicado |
 | CI | GitHub Actions com runner próprio em VM Ampere A1 (ARM64) | Build, testes e deploy sem consumir minutos pagos | 🔵 avaliado |
 | Computação | Funções de nuvem ou serviço .NET na VM ARM | Encerrar sessões em todos os aparelhos e excluir conta com todos os dados | ⚪ planejado |
 | Operação | Firebase Emulator Suite (Auth e Firestore) | Alvo padrão de desenvolvimento e dos testes de integração | 🟢 implementado |
@@ -106,6 +106,7 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 | Serviço | SKU | Região | Papel | Estado |
 |---|---|---|---|---|
 | Workers (arquivos estáticos) | Free | — | Hospedagem principal da Web | 🟢 publicado |
+| Workers (arquivos estáticos) | Free | — | Site da landing page | 🟢 publicado |
 
 #### Microsoft Azure
 
@@ -113,7 +114,7 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 
 | Serviço | SKU | Região | Papel | Estado |
 |---|---|---|---|---|
-| Static Web Apps | Free | East US 2 | Ambiente beta da Web e reserva da produção | 🟢 publicado |
+| Static Web Apps | Free | East US 2 | Ambiente beta da Web, reserva da produção e o site anterior da landing page até a troca para a Cloudflare | 🟢 publicado |
 | App Service | F1 (Linux) | — | Recurso anterior, sem uso | ⚫ legado |
 
 #### Oracle Cloud (OCI)
@@ -135,7 +136,7 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 | Cloud Firestore | Blaze (cota sem custo) | southamerica-east1 | Sincronização | ⚪ planejado |
 | Cloud Build | Gratuito | — | Build x64 do Android, que não roda no runner ARM | 🔵 avaliado |
 | Firebase (projeto do ambiente beta) | Spark (sem faturamento) | — | Identidade do ambiente beta, separada da produção | 🟢 publicado |
-| Cloud Run | — | — | Backend de uma versão anterior, mínimo de 0 instâncias | ⚫ legado |
+| Cloud Run | — | — | Backend de uma versão anterior | ✖️ descartado |
 <!-- gerado:nuvens:fim -->
 
 ## FinOps: custo zero como código
@@ -167,6 +168,7 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 | testes .NET no runner ARM | 977 testes verdes | Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1) |
 | publicação na Cloudflare | 1 min | Medido com o build no PC |
 | arquivos enviados numa publicação incremental | 10 de 78 arquivos | Medido no envio do Wrangler: só os arquivos mudados sobem |
+| verificação pós-publicação da produção | 20 de 20 itens | Script num navegador limpo contra a Web de produção: service worker controlando, cache completo e abertura sem rede, entre outros |
 
 Limite operacional: alerta em **80%** de cada cota gratuita.
 
@@ -192,6 +194,7 @@ Gatilhos de reavaliação:
 - Avisos de compilação tratados como erro; documentação XML exigida no CI
 - Cabeçalhos de segurança e CSP testados no ponta a ponta
 - Service worker testado no ponta a ponta: volta ao app pelo cache e abertura sem rede
+- Service worker endurecido contra resposta redirecionada da borda, com redirecionamento simulado no ponta a ponta
 - Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline
 - Quality gate do SonarQube Cloud nos pull requests
 - Firebase local (emuladores) como alvo padrão; o projeto real só quando o emulador não responde
@@ -207,6 +210,7 @@ Gatilhos de reavaliação:
 - Cada agente tem modelo e nível de esforço definidos pelo tipo de trabalho, e uma orquestração decide o que roda em paralelo e como avaliar o que volta
 - Esta vitrine é atualizada por um pacote de fatos saneado, um agente que escreve (Jules) e um revisor automático (regras, SonarQube Cloud e Claude) que aprova ou devolve o PR
 - Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%
+- A operação das nuvens (publicar, conferir recursos, custos e cotas) passa por um agente de infraestrutura chamado pela sessão principal, com verificações obrigatórias e as armadilhas já vividas registradas
 <!-- gerado:processo:fim -->
 
 ## Decisões de arquitetura
@@ -218,9 +222,7 @@ As decisões e o contexto de cada uma estão em [`docs/adr/`](docs/adr/).
 <!-- gerado:roteiro:inicio -->
 | Item | Estado | Condição |
 |---|---|---|
-| Migrar a landing page para a Cloudflare | ⚪ planejado | — |
 | Domínio próprio: produção na Cloudflare e o Azure de volta a reserva, com troca pelo DNS | ⚪ planejado | — |
-| Excluir o backend legado do Cloud Run | ⚪ planejado | — |
 | CI com GitHub Actions no runner ARM: build, testes, preview por branch e produção na Cloudflare | ⚪ planejado | — |
 | Sincronização de envio (outbox para o Firestore) com regras testadas no emulador | ⚪ planejado | — |
 | Recebimento entre aparelhos com regra de conflito | ⚪ planejado | — |
