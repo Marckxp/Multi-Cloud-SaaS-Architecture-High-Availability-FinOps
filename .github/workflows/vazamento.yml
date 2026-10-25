@@ -32,7 +32,8 @@ jobs:
           VITRINE_PROIBIDOS: ${{ secrets.VITRINE_PROIBIDOS }}
         run: node ferramentas/verificar-vazamento.mjs --exigir-lista --intervalo "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
       - name: PR do Jules não mexe em fontes, ferramentas nem workflows
-        if: github.event_name == 'pull_request' && contains(github.event.pull_request.user.login, 'jules')
+        # O PR do Jules sai em nome do dono do repositório; o que o identifica é o branch jules-<tarefa>.
+        if: github.event_name == 'pull_request' && (startsWith(github.event.pull_request.head.ref, 'jules-') || contains(github.event.pull_request.user.login, 'jules'))
         run: |
           proibidos=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^(fontes/|ferramentas/|\.github/|AGENTS\.md$)' || true)
           if [ -n "$proibidos" ]; then echo "Caminhos protegidos alterados:"; echo "$proibidos"; exit 1; fi
