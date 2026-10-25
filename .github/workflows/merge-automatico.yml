@@ -11,15 +11,16 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review, labeled]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   agente-e-fatos:
     # Começa com "!": precisa da sintaxe de expressão completa, senão o arquivo inteiro é inválido.
     if: ${{ !github.event.pull_request.draft && (startsWith(github.event.pull_request.head.ref, 'jules-') || (startsWith(github.event.pull_request.head.ref, 'fatos/') && github.event.pull_request.user.login == github.repository_owner && contains(github.event.pull_request.labels.*.name, 'fatos-vitrine'))) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Ligar o merge automático
         env:
@@ -30,6 +31,9 @@ jobs:
   dependabot:
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.action != 'labeled'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Tipo da atualização
         id: meta
