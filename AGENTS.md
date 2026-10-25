@@ -12,7 +12,7 @@ Instruções para agentes de código (Jules, Gemini CLI, Claude Code e outros) q
 
 ## Tarefa padrão: atualizar a vitrine a partir das fontes
 
-Ela é acionada por uma issue com a etiqueta `jules`, criada quando um PR `fatos-vitrine` é aceito.
+Ela é acionada por uma issue com a etiqueta `jules`, criada (em nome do dono do repositório) quando um PR `fatos-vitrine` é aceito.
 
 1. Leia `fontes/estado.json`, `fontes/decisoes/*.md` e o que mudou nas fontes no último commit da `main` (`git log -1 -p -- fontes/`).
 2. Valide as fontes: `node ferramentas/verificar-fontes.mjs`. Se falhar, **pare** e relate na issue; não conserte as fontes.
@@ -37,7 +37,7 @@ Ela é acionada por uma issue com a etiqueta `jules`, criada quando um PR `fatos
 
 ## Ambiente
 
-- Basta Node.js 20 ou superior; os scripts de `ferramentas/` não têm dependências. Não há `npm install`.
+- Basta Node.js 24 ou superior; os scripts de `ferramentas/` não têm dependências. Não há `npm install`.
 - Idioma: português do Brasil.
 - Finais de linha: LF.
 
