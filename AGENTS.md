@@ -37,7 +37,7 @@ Ela é acionada por uma issue com a etiqueta `jules`, criada quando um PR `fatos
 
 ## Ambiente
 
-- Basta Node.js 20 ou superior; os scripts de `ferramentas/` não têm dependências. Não há `npm install`.
+- Basta Node.js 24 ou superior; os scripts de `ferramentas/` não têm dependências. Não há `npm install`.
 - Idioma: português do Brasil.
 - Finais de linha: LF.
 

@@ -12,12 +12,12 @@ jobs:
   verificar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - name: Fontes válidas
         run: node ferramentas/verificar-fontes.mjs
       - name: README em dia com as fontes
@@ -37,6 +37,6 @@ jobs:
           proibidos=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^(fontes/|ferramentas/|\.github/|AGENTS\.md$)' || true)
           if [ -n "$proibidos" ]; then echo "Caminhos protegidos alterados:"; echo "$proibidos"; exit 1; fi
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
