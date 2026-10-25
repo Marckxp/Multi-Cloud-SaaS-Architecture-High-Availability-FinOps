@@ -27,6 +27,14 @@ Ela é acionada por uma issue com a etiqueta `jules`, criada (em nome do dono do
    - `node ferramentas/verificar-vazamento.mjs`
 9. Abra **um** PR com o título `vitrine: atualização a partir das fontes de AAAA-MM-DD` (a data é `geradoEm`). Na descrição, liste o que mudou por seção e o que ficou de fora, com o motivo.
 
+## Revisão automática e merge
+
+Um PR de um branch `jules-*` não passa por revisão humana. Ele entra sozinho na `main` quando os checks `verificar` e `revisao` passam.
+
+- O check `revisao` junta as regras determinísticas (`ferramentas/revisar-pr-jules.mjs`) com uma revisão semântica (`.github/revisor/instrucoes.md`). Leia os dois antes de começar: são os critérios do seu PR.
+- **Se `revisao` falhar**, o motivo está no comentário "Revisor: reprovado" do PR. Corrija só o que está listado, no mesmo PR, e rode de novo os três verificadores do passo 8.
+- Depois de 3 reprovações, ou se o próprio revisor falhar, o PR ganha a etiqueta `precisa-humano` e o merge automático é desligado. A partir daí, **não altere o PR**.
+
 ## Nunca
 
 - Alterar `fontes/`, `ferramentas/`, `.github/` ou este arquivo numa tarefa de atualização. Esses arquivos mudam só por PR humano ou pelo pacote `fatos-vitrine`.

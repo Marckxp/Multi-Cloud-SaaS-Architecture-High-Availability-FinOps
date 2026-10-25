@@ -1,0 +1,22 @@
+name: merge-automatico
+
+# PRs de agentes (branch jules-*) entram sozinhos quando os checks exigidos pelo ruleset da main
+# ("verificar" e "revisao") passam. O revisor desliga o merge automático quando chama uma pessoa.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ligar:
+    if: startsWith(github.event.pull_request.head.ref, 'jules-') && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ligar o merge automático
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
