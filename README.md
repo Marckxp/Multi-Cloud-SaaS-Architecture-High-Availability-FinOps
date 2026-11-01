@@ -10,7 +10,7 @@ Esta é a arquitetura de referência de um SaaS em produção inicial, desenhado
 > **Nota:** a lógica de negócio e o produto ficam em repositório privado. Tudo o que está aqui foi extraído de fatos verificados do projeto real (`fontes/`), sem identificadores de contas nem regras de negócio. Nenhum número desta página é estimativa de marketing: cada um tem a forma de medição ao lado.
 
 <!-- gerado:atualizado:inicio -->
-Fatos de 2026-10-25 (pacote v3).
+Fatos de 2026-11-01 (pacote v4).
 <!-- gerado:atualizado:fim -->
 
 ---
@@ -150,6 +150,7 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 | Microsoft Azure | policy | Azure Policy no escopo da assinatura nega Static Web Apps e planos do App Service fora do Free (conferido: Validação de implantação: Standard e B1 negados, Free aceito) | ativa | [finops/azure/politica-somente-free.json](finops/azure/politica-somente-free.json) |
 | Oracle Cloud (OCI) | quota | Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional (conferido: resource-availability mostra só o A1 disponível; outras formas em 0) | ativa | [finops/oci/cota-somente-gratuito.txt](finops/oci/cota-somente-gratuito.txt) |
 | Oracle Cloud (OCI) | budget | Orçamento mensal de 1 com alerta a partir de 0,01 de gasto real | ativa | [finops/oci/orcamento.json](finops/oci/orcamento.json) |
+| Oracle Cloud (OCI) | alerta | Aviso no início de cada sessão de trabalho com o prazo e as conferências de custo do teste de 4 OCPU, até a VM ser parada | ativa | — |
 | Google Cloud / Firebase | budget | Orçamento mensal de R$ 1 filtrado para o projeto do app, com alertas em 1%, 50% e 100% | ativa | — |
 | Google Cloud / Firebase | sku-sem-excedente | O ambiente beta usa um projeto Firebase no plano Spark: ao bater a cota, ele para em vez de cobrar | ativa | — |
 <!-- gerado:protecoes:fim -->
@@ -168,6 +169,7 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 | testes .NET no runner ARM | 977 testes verdes | Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1) |
 | publicação na Cloudflare | 1 min | Medido com o build no PC |
 | arquivos enviados numa publicação incremental | 10 de 78 arquivos | Medido no envio do Wrangler: só os arquivos mudados sobem |
+| arquivo de dados de internacionalização na Cloudflare | 331 KB (zstd) | Medido no navegador num Worker temporário: o arquivo de 1,1 MB passou a ser comprimido ao ser servido com application/wasm; o app abriu, inclusive sem rede. Falta repetir no beta do Azure |
 | verificação pós-publicação da produção | 20 de 20 itens | Script num navegador limpo contra a Web de produção: service worker controlando, cache completo e abertura sem rede, entre outros |
 
 Limite operacional: alerta em **80%** de cada cota gratuita.
@@ -183,10 +185,10 @@ Gatilhos de reavaliação:
 <!-- gerado:qualidade:inicio -->
 | Suíte | Ferramenta | Alvo | Quantidade |
 |---|---|---|---|
-| Unidade e integração do núcleo | xUnit | .NET | 584 |
+| Unidade e integração do núcleo | xUnit | .NET | 596 |
 | Integração contra emulador | xUnit + Firebase Auth Emulator | .NET | 5 |
-| Componentes Razor | bUnit | .NET | 433 |
-| Ponta a ponta na Web | Playwright | Web em 3 larguras (celular, tablet, desktop) | 83 |
+| Componentes Razor | bUnit | .NET | 514 |
+| Ponta a ponta na Web | Playwright | Web em 3 larguras (celular, tablet, desktop) | 117 |
 | Ponta a ponta no app Windows | Playwright via CDP no WebView2 | Windows | 3 |
 | Auditoria de layout no Android | Playwright + adb pelo USB | Android real | 8 |
 
@@ -197,6 +199,9 @@ Gatilhos de reavaliação:
 - Service worker endurecido contra resposta redirecionada da borda, com redirecionamento simulado no ponta a ponta
 - Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline
 - Quality gate do SonarQube Cloud nos pull requests
+- SDK e conjunto de workloads do .NET fixados num arquivo de versão, para o beta e a produção publicarem com o mesmo runtime
+- Produção publicada só por disparo manual, com confirmação digitada e apenas commits que já passaram por um beta verde
+- Atualizações de dependências em PRs mensais, com espera de 14 dias, sem versões maiores dos pacotes .NET
 - Firebase local (emuladores) como alvo padrão; o projeto real só quando o emulador não responde
 - Documentação por arquivo num espelho da árvore, com invariantes e motivos, não assinaturas
 <!-- gerado:qualidade:fim -->
