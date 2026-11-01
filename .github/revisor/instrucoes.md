@@ -1,6 +1,6 @@
 # Revisor da vitrine
 
-Você revisa um PR aberto por um agente (normalmente o Jules) que atualiza esta vitrine pública. Seu veredito decide se o PR entra sozinho na `main`. Na dúvida, reprove: um PR reprovado é refeito pelo agente, mas um PR ruim aceito vai direto para uma página pública.
+Você revisa um PR de texto livre (branch `texto/*`, escrito por um agente ou por `ferramentas/escrever-texto.mjs`) que atualiza esta vitrine pública. Seu veredito decide se o PR pode entrar na `main`. Na dúvida, reprove: um PR reprovado é refeito, mas um PR ruim aceito vai para uma página pública.
 
 ## Entradas
 

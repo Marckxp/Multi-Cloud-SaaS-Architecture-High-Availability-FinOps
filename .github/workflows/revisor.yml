@@ -1,8 +1,9 @@
 name: revisor
 
-# Revisa PRs de agentes (branch jules-*) antes do merge automático: regras determinísticas,
-# quality gate do SonarQube Cloud e revisão semântica pelo Claude (.github/revisor/instrucoes.md).
-# O resultado vira o check "revisao", exigido pelo ruleset da main. PRs humanos recebem "revisao" verde na hora.
+# Revisa PRs de texto livre (branch texto/*, de um agente ou do escrever-texto.mjs): regras
+# determinísticas, quality gate do SonarQube Cloud e revisão semântica pelo Claude
+# (.github/revisor/instrucoes.md). O resultado vira o check "revisao", exigido pelo ruleset da main.
+# Os demais PRs recebem "revisao" verde na hora: todo PR precisa desse check, senão nada mais entra.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -29,7 +30,7 @@ jobs:
       PR: ${{ github.event.pull_request.number }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      EH_AGENTE: ${{ startsWith(github.event.pull_request.head.ref, 'jules-') }}
+      EH_AGENTE: ${{ startsWith(github.event.pull_request.head.ref, 'texto/') }}
     steps:
       # A pasta de trabalho é a base (confiável): regras, instruções e veredito nunca vêm do PR.
       # O conteúdo do PR é lido pelo git (HEAD_SHA), como dado.
@@ -46,7 +47,7 @@ jobs:
         id: regras
         if: env.EH_AGENTE == 'true'
         continue-on-error: true
-        run: node ferramentas/revisar-pr-jules.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --saida regras.md
+        run: node ferramentas/revisar-texto.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --saida regras.md
       - name: SonarQube Cloud
         id: sonar
         if: env.EH_AGENTE == 'true' && steps.regras.outcome == 'success'
@@ -96,7 +97,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      EH_AGENTE: ${{ startsWith(github.event.pull_request.head.ref, 'jules-') }}
+      EH_AGENTE: ${{ startsWith(github.event.pull_request.head.ref, 'texto/') }}
       REGRAS: ${{ needs.revisar.outputs.regras }}
       SONAR: ${{ needs.revisar.outputs.sonar }}
       CLAUDE: ${{ needs.revisar.outputs.claude }}
