@@ -5,8 +5,10 @@ name: merge-automatico
 #   - jules-*: PRs do Jules, julgados pelo revisor (que desliga o merge automático quando chama uma pessoa).
 #   - fatos/*: pacote de fatos aberto pelo dono do repositório, com o conteúdo já aprovado no
 #     "sim" antes do commit; o job verificar reprova se ele sair de fontes/ e README.md.
-#   - Dependabot: só atualizações menores e correções; versão maior fica com uma pessoa.
-# PRs ci/* e os demais continuam com merge humano: mudam as regras que protegem a vitrine.
+#   - ci/*: PRs do dono que mudam ferramentas e workflows. Decisão do usuário em 2026-11-01: a vitrine
+#     não pede validação humana; quem barra são os checks do ruleset.
+#   - Dependabot: todas as atualizações, com a espera de 14 dias do dependabot.yml.
+# Os demais PRs continuam com merge humano.
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, labeled]
@@ -16,18 +18,18 @@ permissions: {}
 jobs:
   agente-e-fatos:
     # Começa com "!": precisa da sintaxe de expressão completa, senão o arquivo inteiro é inválido.
-    if: ${{ !github.event.pull_request.draft && (startsWith(github.event.pull_request.head.ref, 'jules-') || (startsWith(github.event.pull_request.head.ref, 'fatos/') && github.event.pull_request.user.login == github.repository_owner && contains(github.event.pull_request.labels.*.name, 'fatos-vitrine'))) }}
+    if: ${{ !github.event.pull_request.draft && (startsWith(github.event.pull_request.head.ref, 'jules-') || (startsWith(github.event.pull_request.head.ref, 'fatos/') && github.event.pull_request.user.login == github.repository_owner && contains(github.event.pull_request.labels.*.name, 'fatos-vitrine')) || (startsWith(github.event.pull_request.head.ref, 'ci/') && github.event.pull_request.user.login == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     steps:
-      # No pacote de fatos, o merge automático é ligado com o token do dono (JULES_GATILHO_TOKEN,
+      # Em fatos/* e ci/*, o merge automático é ligado com o token do dono (JULES_GATILHO_TOKEN,
       # fine-grained, só esta vitrine): um merge feito com o GITHUB_TOKEN não dispara outros
       # workflows, e o acionar-jules precisa do evento "closed" do PR (visto no PR #16).
       - name: Ligar o merge automático
         env:
-          GH_TOKEN: ${{ startsWith(github.event.pull_request.head.ref, 'fatos/') && secrets.JULES_GATILHO_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ !startsWith(github.event.pull_request.head.ref, 'jules-') && secrets.JULES_GATILHO_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
 
@@ -38,15 +40,8 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - name: Tipo da atualização
-        id: meta
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-      - name: Ligar o merge automático (menor ou correção)
-        if: steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch'
+      - name: Ligar o merge automático
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
-      - name: Versão maior fica com uma pessoa
-        if: steps.meta.outputs.update-type == 'version-update:semver-major'
-        run: echo "Versão maior, o merge é humano."
