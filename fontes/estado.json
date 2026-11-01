@@ -137,7 +137,7 @@
     "Achados menores de revisão ficam registrados com dono e momento de resolver",
     "Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão, depuração, pesquisa em documentação, nuvem)",
     "Cada agente tem modelo e nível de esforço definidos pelo tipo de trabalho, e uma orquestração decide o que roda em paralelo e como avaliar o que volta",
-    "Esta vitrine é atualizada por um pacote de fatos saneado, um agente que escreve (Jules) e um revisor automático (regras, SonarQube Cloud e Claude) que aprova ou devolve o PR",
+    "Esta vitrine é atualizada por um pacote de fatos saneado: os dados do README e os ADRs saem por script, e o CI (fontes, vazamento, segredos e SonarQube Cloud) barra o PR que não passar",
     "Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%",
     "A operação das nuvens (publicar, conferir recursos, custos e cotas) passa por um agente de infraestrutura chamado pela sessão principal, com verificações obrigatórias e as armadilhas já vividas registradas"
   ],

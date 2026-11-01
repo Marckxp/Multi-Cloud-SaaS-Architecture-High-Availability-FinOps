@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Regras determinísticas para um PR do Jules (ou de qualquer agente) que atualiza a vitrine.
+// Regras determinísticas para o texto livre da vitrine, escrito por um agente ou pelo escrever-texto.mjs.
 // Complementa o CI de vazamento: aqui se confere o que o agente pode mudar e se o texto novo
 // tem origem nas fontes. Sai com 1 e lista os motivos quando alguma regra falha.
 //
-//   node ferramentas/revisar-pr-jules.mjs --base <sha> --head <sha> [--saida motivos.md]
+//   node ferramentas/revisar-texto.mjs --base <sha> --head <sha> [--saida motivos.md]
 
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -19,7 +19,7 @@ const base = arg("--base");
 const head = arg("--head") ?? "HEAD";
 const saida = arg("--saida");
 if (!base) {
-  console.error("Uso: revisar-pr-jules.mjs --base <sha> --head <sha> [--saida arquivo]");
+  console.error("Uso: revisar-texto.mjs --base <sha> --head <sha> [--saida arquivo]");
   process.exit(2);
 }
 

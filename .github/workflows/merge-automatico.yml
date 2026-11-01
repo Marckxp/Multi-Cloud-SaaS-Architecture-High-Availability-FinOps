@@ -2,7 +2,6 @@ name: merge-automatico
 
 # Liga o merge automático nos PRs que podem entrar sem um merge humano. O GitHub só faz o merge
 # quando os checks exigidos pelo ruleset da main (verificar, revisao e Sonar) passam.
-#   - jules-*: PRs do Jules, julgados pelo revisor (que desliga o merge automático quando chama uma pessoa).
 #   - fatos/*: pacote de fatos aberto pelo dono do repositório, com o conteúdo já aprovado no
 #     "sim" antes do commit; o job verificar reprova se ele sair de fontes/ e README.md.
 #   - ci/*: PRs do dono que mudam ferramentas e workflows. Decisão do usuário em 2026-11-01: a vitrine
@@ -16,20 +15,20 @@ on:
 permissions: {}
 
 jobs:
-  agente-e-fatos:
+  fatos-e-ci:
     # Começa com "!": precisa da sintaxe de expressão completa, senão o arquivo inteiro é inválido.
-    if: ${{ !github.event.pull_request.draft && (startsWith(github.event.pull_request.head.ref, 'jules-') || (startsWith(github.event.pull_request.head.ref, 'fatos/') && github.event.pull_request.user.login == github.repository_owner && contains(github.event.pull_request.labels.*.name, 'fatos-vitrine')) || (startsWith(github.event.pull_request.head.ref, 'ci/') && github.event.pull_request.user.login == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    if: ${{ !github.event.pull_request.draft && ((startsWith(github.event.pull_request.head.ref, 'fatos/') && github.event.pull_request.user.login == github.repository_owner && contains(github.event.pull_request.labels.*.name, 'fatos-vitrine')) || (startsWith(github.event.pull_request.head.ref, 'ci/') && github.event.pull_request.user.login == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     steps:
-      # Em fatos/* e ci/*, o merge automático é ligado com o token do dono (JULES_GATILHO_TOKEN,
-      # fine-grained, só esta vitrine): um merge feito com o GITHUB_TOKEN não dispara outros
-      # workflows, e o acionar-jules precisa do evento "closed" do PR (visto no PR #16).
+      # O merge automático é ligado com o token do dono (JULES_GATILHO_TOKEN, fine-grained, só esta
+      # vitrine): um merge feito com o GITHUB_TOKEN não dispara outros workflows, e o job verificar
+      # precisa do evento "push" na main (o merge do PR #26, feito com o GITHUB_TOKEN, não o gerou).
       - name: Ligar o merge automático
         env:
-          GH_TOKEN: ${{ !startsWith(github.event.pull_request.head.ref, 'jules-') && secrets.JULES_GATILHO_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.JULES_GATILHO_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
 

@@ -2,7 +2,7 @@
 // Junta as regras determinísticas e a revisão semântica num veredito e o publica como o check
 // "revisao", que o ruleset da main exige.
 //   success          aprovado (ou PR que não é de agente: fica com a revisão humana)
-//   failure          reprovado: o job também falha, para o CI Fixer do Jules refazer o PR
+//   failure          reprovado: o job também falha, e o comentário no PR diz o que refazer
 //   action_required  falha do próprio revisor (token, limite, saída inválida) ou tentativas
 //                    esgotadas: bloqueia o merge, tira o merge automático e chama uma pessoa,
 //                    sem fazer o agente "consertar" o que não é erro dele
@@ -41,18 +41,17 @@ function chamarPessoa(titulo, resumo) {
   }
   gh("label", "create", "precisa-humano", "--repo", GH_REPO, "--color", "D93F0B", "--description", "O revisor automático parou; precisa de uma pessoa", "--force");
   gh("pr", "edit", PR, "--repo", GH_REPO, "--add-label", "precisa-humano");
-  comentar(`## Revisor: ${titulo}\n\n${resumo}\n\nO merge automático foi desligado. **Agente: não altere o PR por causa desta mensagem.** Uma pessoa vai decidir.`);
+  comentar(`## Revisor: ${titulo}\n\n${resumo}\n\nO merge automático, se estava ligado, foi desligado. **Agente: não altere o PR por causa desta mensagem.** Uma pessoa vai decidir.`);
   publicar("action_required", titulo, resumo);
 }
 
 // Aprovado numa nova execução depois de ter chamado uma pessoa (por exemplo, depois de trocar um
-// token): tira a etiqueta e religa o merge automático, que o merge-automatico.yml só liga ao abrir.
+// token): tira a etiqueta. O merge continua humano: PR de texto livre não tem merge automático.
 function liberar() {
   const etiquetas = JSON.parse(gh("pr", "view", PR, "--repo", GH_REPO, "--json", "labels")).labels.map((l) => l.name);
   if (!etiquetas.includes("precisa-humano")) return;
   gh("pr", "edit", PR, "--repo", GH_REPO, "--remove-label", "precisa-humano");
-  gh("pr", "merge", PR, "--repo", GH_REPO, "--auto", "--merge", "--delete-branch");
-  comentar("## Revisor: aprovado numa nova execução\n\nA etiqueta `precisa-humano` foi retirada e o merge automático foi religado.");
+  comentar("## Revisor: aprovado numa nova execução\n\nA etiqueta `precisa-humano` foi retirada.");
 }
 
 if (EH_AGENTE !== "true") {

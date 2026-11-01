@@ -17,7 +17,7 @@
 // 2 uso ou configuração (inclui chave ausente), 3 falha do provedor.
 //
 // Aceite do texto: o candidato entra numa cópia temporária do repositório e passa por
-// verificar-vazamento (arquivos e histórico), regras R1 a R6 (revisar-pr-jules), gerar-readme --verificar,
+// verificar-vazamento (arquivos e histórico), regras R1 a R6 (revisar-texto), gerar-readme --verificar,
 // gerar-adrs --verificar (a regra R7 estendida: docs/adr/ é gerado) e verificar-fontes.
 
 import { execFileSync } from "node:child_process";
@@ -158,7 +158,7 @@ export function avaliar(raiz, alvo, candidato, env = process.env) {
     git(tmp, "commit", "-q", "-m", "texto livre a partir das fontes");
     const verificacoes = [
       ["vazamento", "verificar-vazamento.mjs", "--exigir-lista", "--intervalo", `${base}..HEAD`],
-      ["regras R1 a R6", "revisar-pr-jules.mjs", "--base", base, "--head", "HEAD"],
+      ["regras R1 a R6", "revisar-texto.mjs", "--base", base, "--head", "HEAD"],
       ["README em dia", "gerar-readme.mjs", "--verificar"],
       ["ADRs em dia (R7 estendida)", "gerar-adrs.mjs", "--verificar"],
       ["fontes válidas", "verificar-fontes.mjs"],

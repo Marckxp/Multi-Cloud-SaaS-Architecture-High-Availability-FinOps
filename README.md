@@ -213,7 +213,7 @@ Gatilhos de reavaliação:
 - Achados menores de revisão ficam registrados com dono e momento de resolver
 - Desenvolvimento assistido por agentes especializados por camada (domínio, dados, interface, hosts, e2e, revisão, depuração, pesquisa em documentação, nuvem)
 - Cada agente tem modelo e nível de esforço definidos pelo tipo de trabalho, e uma orquestração decide o que roda em paralelo e como avaliar o que volta
-- Esta vitrine é atualizada por um pacote de fatos saneado, um agente que escreve (Jules) e um revisor automático (regras, SonarQube Cloud e Claude) que aprova ou devolve o PR
+- Esta vitrine é atualizada por um pacote de fatos saneado: os dados do README e os ADRs saem por script, e o CI (fontes, vazamento, segredos e SonarQube Cloud) barra o PR que não passar
 - Cada nuvem tem um arquivo de cotas gratuitas versionado, conferido com a fonte oficial e com limite operacional de 80%
 - A operação das nuvens (publicar, conferir recursos, custos e cotas) passa por um agente de infraestrutura chamado pela sessão principal, com verificações obrigatórias e as armadilhas já vividas registradas
 <!-- gerado:processo:fim -->
@@ -242,7 +242,7 @@ A topologia original desta vitrine (APIs em contêineres na OCI, Cloudflare Tunn
 
 1. O projeto privado gera um pacote de fatos saneado (`fontes/estado.json` e `fontes/decisoes/`). Um verificador local roda antes do push.
 2. O pacote entra por pull request com a etiqueta `fatos-vitrine`. O CI bloqueia identificadores (GUID, OCID, IP, e-mail, hostnames de provedor, chaves) e uma lista de termos proibidos que fica num secret, nunca no repositório.
-3. Quando esse PR é aceito, uma issue com a etiqueta `jules` aciona o agente [Jules](https://jules.google), que atualiza o README, os ADRs e `finops/` seguindo o [`AGENTS.md`](AGENTS.md) e abre um novo PR, que passa pelo mesmo CI.
+3. O mesmo PR traz os blocos de dados do README e os ADRs, gerados por script a partir das fontes e conferidos no CI. O ciclo termina no merge dele. O texto livre muda só quando alguém o altera, seguindo o [`AGENTS.md`](AGENTS.md), e o PR passa pelo mesmo CI.
 
 ## Autor
 
