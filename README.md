@@ -10,7 +10,7 @@ Esta é a arquitetura de referência de um SaaS em produção inicial, desenhado
 > **Nota:** a lógica de negócio e o produto ficam em repositório privado. Tudo o que está aqui foi extraído de fatos verificados do projeto real (`fontes/`), sem identificadores de contas nem regras de negócio. Nenhum número desta página é estimativa de marketing: cada um tem a forma de medição ao lado.
 
 <!-- gerado:atualizado:inicio -->
-Fatos de 2026-11-01 (pacote v4).
+Fatos de 2026-11-02 (pacote v5).
 <!-- gerado:atualizado:fim -->
 
 ---
@@ -124,7 +124,7 @@ Linha cheia: em uso. Tracejada: reserva, avaliado ou planejado.
 | Serviço | SKU | Região | Papel | Estado |
 |---|---|---|---|---|
 | Compute Ampere A1 (VM.Standard.A1.Flex) | Always Free | sa-saopaulo-1 | Runner de CI ARM64 e, se a demanda pedir, servidor mínimo | 🟡 em teste |
-| Block Volume | Always Free | — | Disco de boot da VM | 🟡 em teste |
+| Block Volume | Always Free | — | Disco de boot da VM (50 de 200 GB em uso) | 🟡 em teste |
 
 #### Google Cloud / Firebase
 
@@ -148,7 +148,7 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 |---|---|---|---|---|
 | Cloudflare | sku-sem-excedente | Arquivos estáticos não são cobrados por requisição | ativa | — |
 | Microsoft Azure | policy | Azure Policy no escopo da assinatura nega Static Web Apps e planos do App Service fora do Free (conferido: Validação de implantação: Standard e B1 negados, Free aceito) | ativa | [finops/azure/politica-somente-free.json](finops/azure/politica-somente-free.json) |
-| Oracle Cloud (OCI) | quota | Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional (conferido: resource-availability mostra só o A1 disponível; outras formas em 0) | ativa | [finops/oci/cota-somente-gratuito.txt](finops/oci/cota-somente-gratuito.txt) |
+| Oracle Cloud (OCI) | quota | Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional. Durante o teste, a cota aplicada permite 4 OCPU e 24 GB no A1 e, nesse valor, não bloqueia o excedente de 1.500 OCPU-hora; quem avisa do custo é o orçamento (conferido: resource-availability mostra só o A1 disponível; outras formas em 0) | ativa | [finops/oci/cota-somente-gratuito.txt](finops/oci/cota-somente-gratuito.txt) |
 | Oracle Cloud (OCI) | budget | Orçamento mensal de 1 com alerta a partir de 0,01 de gasto real | ativa | [finops/oci/orcamento.json](finops/oci/orcamento.json) |
 | Oracle Cloud (OCI) | alerta | Aviso no início de cada sessão de trabalho com o prazo e as conferências de custo do teste de 4 OCPU, até a VM ser parada | ativa | — |
 | Google Cloud / Firebase | budget | Orçamento mensal de R$ 1 filtrado para o projeto do app, com alertas em 1%, 50% e 100% | ativa | — |
@@ -167,6 +167,7 @@ Cada nuvem tem uma proteção que **bloqueia** o que for pago, onde o provedor p
 | usuários ativos que cabem no SWA Free | 7.800 MAU | 100 GB/mês divididos pela banda por usuário |
 | publish da Web no runner ARM | 45 s | Medido na VM A1 |
 | testes .NET no runner ARM | 977 testes verdes | Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1) |
+| consumo do A1 em outubro (VM de 4 OCPU desde 25/10) | 600,48 OCPU-hora | Lido no relatório de custo do mês: abaixo dos dois limites possíveis (1.500 e 3.000), custo zero. Em novembro, ligada o mês todo, a VM consumiria 2.880 OCPU-hora |
 | publicação na Cloudflare | 1 min | Medido com o build no PC |
 | arquivos enviados numa publicação incremental | 10 de 78 arquivos | Medido no envio do Wrangler: só os arquivos mudados sobem |
 | arquivo de dados de internacionalização na Cloudflare | 331 KB (zstd) | Medido no navegador num Worker temporário: o arquivo de 1,1 MB passou a ser comprimido ao ser servido com application/wasm; o app abriu, inclusive sem rede. Falta repetir no beta do Azure |
@@ -188,6 +189,7 @@ Gatilhos de reavaliação:
 | Unidade e integração do núcleo | xUnit | .NET | 596 |
 | Integração contra emulador | xUnit + Firebase Auth Emulator | .NET | 5 |
 | Componentes Razor | bUnit | .NET | 514 |
+| Scripts de automação do processo | node:test | Node | 288 |
 | Ponta a ponta na Web | Playwright | Web em 3 larguras (celular, tablet, desktop) | 117 |
 | Ponta a ponta no app Windows | Playwright via CDP no WebView2 | Windows | 3 |
 | Auditoria de layout no Android | Playwright + adb pelo USB | Android real | 8 |
@@ -199,6 +201,9 @@ Gatilhos de reavaliação:
 - Service worker endurecido contra resposta redirecionada da borda, com redirecionamento simulado no ponta a ponta
 - Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline
 - Quality gate do SonarQube Cloud nos pull requests
+- Gancho de pre-commit no Git que analisa o conteúdo em stage e barra segredo antes de existir o commit
+- Actions de terceiros fixadas pelo SHA completo do commit, e não por tag
+- Atualização testada no beta publicado: o app abre com o perfil gravado pela versão anterior e confere que os dados locais sobrevivem; o perfil só é guardado se a run ficar verde
 - SDK e conjunto de workloads do .NET fixados num arquivo de versão, para o beta e a produção publicarem com o mesmo runtime
 - Produção publicada só por disparo manual, com confirmação digitada e apenas commits que já passaram por um beta verde
 - Atualizações de dependências em PRs mensais, com espera de 14 dias, sem versões maiores dos pacotes .NET
