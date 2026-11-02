@@ -1,6 +1,6 @@
 {
-  "versaoPacote": 4,
-  "geradoEm": "2026-11-01",
+  "versaoPacote": 5,
+  "geradoEm": "2026-11-02",
   "arquitetura": {
     "padrao": "offline-first com borda estática e nuvem só para identidade e dados",
     "resumo": "O cliente roda inteiro no aparelho (nativo ou navegador) com banco local; a nuvem entrega arquivos estáticos e cuida de identidade e, numa próxima etapa, da sincronização. Não há servidor de aplicação próprio: um backend só entra quando houver demanda medida.",
@@ -42,7 +42,11 @@
           "limites": [
             { "recurso": "banda", "cota": 100, "unidade": "GB", "periodo": "mês por assinatura", "observacao": "No Free o site para de servir ao passar; não há excedente cobrado" },
             { "recurso": "armazenamento por ambiente", "cota": 250, "unidade": "MB", "periodo": "total" },
-            { "recurso": "ambientes de preview", "cota": 3, "unidade": "ambientes", "periodo": "total" }
+            { "recurso": "armazenamento de todos os ambientes", "cota": 500, "unidade": "MB", "periodo": "total" },
+            { "recurso": "arquivos por app", "cota": 15000, "unidade": "arquivos", "periodo": "total" },
+            { "recurso": "ambientes de preview", "cota": 3, "unidade": "ambientes", "periodo": "total" },
+            { "recurso": "domínios próprios", "cota": 2, "unidade": "domínios", "periodo": "total" },
+            { "recurso": "apps", "cota": 10, "unidade": "apps", "periodo": "total por assinatura" }
           ]
         },
         { "servico": "App Service", "sku": "F1 (Linux)", "estado": "legado", "papel": "Recurso anterior, sem uso", "observacao": "Sem SLA; a Microsoft não suporta produção no F1" }
@@ -58,15 +62,15 @@
         {
           "servico": "Compute Ampere A1 (VM.Standard.A1.Flex)", "sku": "Always Free", "regiao": "sa-saopaulo-1", "estado": "em-teste", "papel": "Runner de CI ARM64 e, se a demanda pedir, servidor mínimo",
           "limites": [
-            { "recurso": "OCPU-hora", "cota": 1500, "unidade": "OCPU-hora", "periodo": "mês", "observacao": "2 OCPU contínuos depois do corte de 2026; o teste confere se contas pagas mantêm 4" },
+            { "recurso": "OCPU-hora", "cota": 1500, "unidade": "OCPU-hora", "periodo": "mês", "observacao": "2 OCPU contínuos depois do corte de 2026; o teste confere se contas pagas mantêm 4. A documentação diverge: a página dos recursos Always Free diz 1.500 para todas as contas, enquanto a página do compute ARM e a lista de preços ainda trazem 3.000 OCPU-hora e 18.000 GB-hora. Limite vigente indefinido até a leitura de custo depois do cruzamento previsto" },
             { "recurso": "memória", "cota": 9000, "unidade": "GB-hora", "periodo": "mês", "observacao": "12 GB contínuos" }
           ],
-          "observacao": "A Oracle pode recolher instância ociosa (percentil 95 de CPU, rede e memória abaixo de 20% em 7 dias). O teste com 4 OCPU tem parada autorizada para 2026-11-18; o limite mensal de 1.500 OCPU-hora é cruzado por volta de 2026-11-16, e há leituras de custo agendadas até a parada"
+          "observacao": "A Oracle pode recolher instância ociosa (percentil 95 de CPU, rede e memória abaixo de 20% em 7 dias). O teste com 4 OCPU tem parada autorizada para 2026-11-18; o limite mensal de 1.500 OCPU-hora é cruzado por volta de 2026-11-16, e há leituras de custo agendadas até a parada. Em 2026-11-01, sete dias depois da criação, a VM seguia ligada, sem ter sido recolhida, e o custo do mês era zero; isso não prova que a conta escapa do recolhimento"
         },
-        { "servico": "Block Volume", "sku": "Always Free", "estado": "em-teste", "papel": "Disco de boot da VM", "limites": [ { "recurso": "boot e bloco", "cota": 200, "unidade": "GB", "periodo": "total" }, { "recurso": "backups", "cota": 5, "unidade": "backups", "periodo": "total" } ] }
+        { "servico": "Block Volume", "sku": "Always Free", "estado": "em-teste", "papel": "Disco de boot da VM (50 de 200 GB em uso)", "limites": [ { "recurso": "boot e bloco", "cota": 200, "unidade": "GB", "periodo": "total" }, { "recurso": "backups", "cota": 5, "unidade": "backups", "periodo": "total" } ] }
       ],
       "protecoes": [
-        { "tipo": "quota", "descricao": "Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional", "estado": "ativa", "verificacao": "resource-availability mostra só o A1 disponível; outras formas em 0", "arquivo": "finops/oci/cota-somente-gratuito.txt" },
+        { "tipo": "quota", "descricao": "Cota de tenancy zera compute e block storage e libera só o A1 gratuito, inclusive a contagem regional. Durante o teste, a cota aplicada permite 4 OCPU e 24 GB no A1 e, nesse valor, não bloqueia o excedente de 1.500 OCPU-hora; quem avisa do custo é o orçamento", "estado": "ativa", "verificacao": "resource-availability mostra só o A1 disponível; outras formas em 0", "arquivo": "finops/oci/cota-somente-gratuito.txt" },
         { "tipo": "budget", "descricao": "Orçamento mensal de 1 com alerta a partir de 0,01 de gasto real", "estado": "ativa", "arquivo": "finops/oci/orcamento.json" },
         { "tipo": "alerta", "descricao": "Aviso no início de cada sessão de trabalho com o prazo e as conferências de custo do teste de 4 OCPU, até a VM ser parada", "estado": "ativa" }
       ]
@@ -97,6 +101,7 @@
       { "nome": "usuários ativos que cabem no SWA Free", "valor": 7800, "unidade": "MAU", "como": "100 GB/mês divididos pela banda por usuário" },
       { "nome": "publish da Web no runner ARM", "valor": 45, "unidade": "s", "como": "Medido na VM A1" },
       { "nome": "testes .NET no runner ARM", "valor": 977, "unidade": "testes verdes", "como": "Rodados na VM A1 (.NET 10 e wasm-tools exigem a libatomic1)" },
+      { "nome": "consumo do A1 em outubro (VM de 4 OCPU desde 25/10)", "valor": 600.48, "unidade": "OCPU-hora", "como": "Lido no relatório de custo do mês: abaixo dos dois limites possíveis (1.500 e 3.000), custo zero. Em novembro, ligada o mês todo, a VM consumiria 2.880 OCPU-hora" },
       { "nome": "publicação na Cloudflare", "valor": 1, "unidade": "min", "como": "Medido com o build no PC" },
       { "nome": "arquivos enviados numa publicação incremental", "valor": 10, "unidade": "de 78 arquivos", "como": "Medido no envio do Wrangler: só os arquivos mudados sobem" },
       { "nome": "arquivo de dados de internacionalização na Cloudflare", "valor": 331, "unidade": "KB (zstd)", "como": "Medido no navegador num Worker temporário: o arquivo de 1,1 MB passou a ser comprimido ao ser servido com application/wasm; o app abriu, inclusive sem rede. Falta repetir no beta do Azure" },
@@ -113,6 +118,7 @@
       { "nome": "Unidade e integração do núcleo", "ferramenta": "xUnit", "alvo": ".NET", "quantidade": 596 },
       { "nome": "Integração contra emulador", "ferramenta": "xUnit + Firebase Auth Emulator", "alvo": ".NET", "quantidade": 5, "observacao": "Ficam ignorados quando o emulador não está ligado, como no CI" },
       { "nome": "Componentes Razor", "ferramenta": "bUnit", "alvo": ".NET", "quantidade": 514 },
+      { "nome": "Scripts de automação do processo", "ferramenta": "node:test", "alvo": "Node", "quantidade": 288, "observacao": "Cobrem as ferramentas de CI, custo, monitoramento da VM e gancho de segredos; 0 falhas" },
       { "nome": "Ponta a ponta na Web", "ferramenta": "Playwright", "alvo": "Web em 3 larguras (celular, tablet, desktop)", "quantidade": 117 },
       { "nome": "Ponta a ponta no app Windows", "ferramenta": "Playwright via CDP no WebView2", "alvo": "Windows", "quantidade": 3 },
       { "nome": "Auditoria de layout no Android", "ferramenta": "Playwright + adb pelo USB", "alvo": "Android real", "quantidade": 8, "observacao": "Telas auditadas: rolagem, elementos fora da tela, desalinhados, alvos de toque abaixo de 40 px" }
@@ -125,6 +131,9 @@
       "Service worker endurecido contra resposta redirecionada da borda, com redirecionamento simulado no ponta a ponta",
       "Cada publicação conferida por script como um cliente a veria: cabeçalhos, tipo do wasm, ambiente, segunda visita, cache do service worker e abertura offline",
       "Quality gate do SonarQube Cloud nos pull requests",
+      "Gancho de pre-commit no Git que analisa o conteúdo em stage e barra segredo antes de existir o commit",
+      "Actions de terceiros fixadas pelo SHA completo do commit, e não por tag",
+      "Atualização testada no beta publicado: o app abre com o perfil gravado pela versão anterior e confere que os dados locais sobrevivem; o perfil só é guardado se a run ficar verde",
       "SDK e conjunto de workloads do .NET fixados num arquivo de versão, para o beta e a produção publicarem com o mesmo runtime",
       "Produção publicada só por disparo manual, com confirmação digitada e apenas commits que já passaram por um beta verde",
       "Atualizações de dependências em PRs mensais, com espera de 14 dias, sem versões maiores dos pacotes .NET",
