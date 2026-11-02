@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "displayName": "Free SKU only for Static Web Apps and App Service plans",
+    "description": "Blocks the creation or change of Static Web Apps and App Service plans outside the free tier, to keep the subscription spend at zero.",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": { "category": "Cost" },
+    "policyRule": {
+      "if": {
+        "anyOf": [
+          {
+            "allOf": [
+              { "field": "type", "equals": "Microsoft.Web/staticSites" },
+              { "field": "Microsoft.Web/staticSites/sku.name", "notEquals": "Free" }
+            ]
+          },
+          {
+            "allOf": [
+              { "field": "type", "equals": "Microsoft.Web/serverfarms" },
+              { "field": "Microsoft.Web/serverFarms/sku.tier", "notEquals": "Free" }
+            ]
+          }
+        ]
+      },
+      "then": { "effect": "deny" }
+    }
+  }
+}

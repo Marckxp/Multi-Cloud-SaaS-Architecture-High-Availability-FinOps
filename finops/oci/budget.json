@@ -1,0 +1,18 @@
+{
+  "budget": {
+    "displayName": "zero-spend",
+    "description": "Zero spend: any charge raises an alert",
+    "amount": 1,
+    "resetPeriod": "MONTHLY",
+    "targetType": "COMPARTMENT",
+    "target": "<TENANCY_OCID>"
+  },
+  "alertRule": {
+    "displayName": "any-charge",
+    "type": "ACTUAL",
+    "threshold": 0.01,
+    "thresholdType": "ABSOLUTE",
+    "recipients": "<RESPONSIBLE_EMAIL>",
+    "message": "A charge occurred on Oracle Cloud. The account should have zero spend."
+  }
+}

@@ -1,0 +1,124 @@
+name: reviewer
+
+# Reviews free-text PRs (branch text/*, from an agent or from write-text.mjs): deterministic
+# rules, the SonarQube Cloud quality gate and a semantic review by Claude
+# (.github/reviewer/instructions.md). The result becomes the "revisao" check, required by the main ruleset
+# (the check name is kept because the ruleset refers to it).
+# All other PRs get a green "revisao" right away: every PR needs that check, or nothing else gets in.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Each job gets only what it needs: Claude runs in a job that only reads; the job that publishes the
+# check, comments and turns off auto-merge (which needs contents: write) is the verdict job.
+permissions: {}
+
+concurrency:
+  group: reviewer-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rules: ${{ steps.rules.outcome }}
+      sonar: ${{ steps.sonar.outputs.result }}
+      claude: ${{ steps.claude.outcome }}
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      IS_AGENT: ${{ startsWith(github.event.pull_request.head.ref, 'text/') }}
+    steps:
+      # The working folder is the base (trusted): rules, instructions and verdict never come from the PR.
+      # The PR content is read through git (HEAD_SHA), as data.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+      - name: Fetch the PR commit
+        run: git fetch --no-tags origin "$HEAD_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Deterministic rules
+        id: rules
+        if: env.IS_AGENT == 'true'
+        continue-on-error: true
+        run: node tools/review-text.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --output rules.md
+      - name: SonarQube Cloud
+        id: sonar
+        if: env.IS_AGENT == 'true' && steps.rules.outcome == 'success'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT: Marckxp_Multi-Cloud-SaaS-Architecture-High-Availability-FinOps
+        run: node .github/reviewer/sonar.mjs
+      - name: Semantic review
+        id: claude
+        if: env.IS_AGENT == 'true' && steps.rules.outcome == 'success'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@5eb090f3c3afd701a0672cd32981197ca27688f6 # v1.0.253
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Follow .github/reviewer/instructions.md to review PR #${{ github.event.pull_request.number }}.
+            BASE=${{ github.event.pull_request.base.sha }} HEAD=${{ github.event.pull_request.head.sha }}.
+            The working folder is at BASE; read the PR files with git show HEAD:<path> and git diff BASE..HEAD.
+            Write the verdict to review.json and do not change any other file.
+          claude_args: >-
+            --model claude-sonnet-5-5 --max-turns 40
+            --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+      - name: Keep the reports for the verdict
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: review-reports
+          path: |
+            rules.md
+            sonar.md
+            review.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  verdict:
+    needs: review
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      IS_AGENT: ${{ startsWith(github.event.pull_request.head.ref, 'text/') }}
+      RULES: ${{ needs.review.outputs.rules }}
+      SONAR: ${{ needs.review.outputs.sonar }}
+      CLAUDE: ${{ needs.review.outputs.claude }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Review reports
+        if: env.IS_AGENT == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: review-reports
+      - name: Verdict
+        run: |
+          if [ -f .github/reviewer/verdict.mjs ]; then
+            node .github/reviewer/verdict.mjs
+          else
+            echo "The base does not have the reviewer yet (PR that introduces it)."
+          fi

@@ -1,0 +1,182 @@
+{
+  "packageVersion": 6,
+  "generatedAt": "2026-11-02",
+  "architecture": {
+    "pattern": "offline-first with a static edge and a cloud used only for identity and data",
+    "summary": "The client runs entirely on the device (native or browser) with a local database. The cloud serves static files, handles identity and, in a later stage, sync. There is no application server of its own: a backend is added only when measured demand justifies it.",
+    "components": [
+      { "id": "core", "layer": "client", "technology": ".NET 10 (domain and data libraries)", "role": "Business rules and data access in a single codebase, shared by the native app and the web app", "state": "implemented", "connectsTo": ["local-db"] },
+      { "id": "native-app", "layer": "client", "technology": ".NET MAUI Blazor Hybrid (Android and Windows)", "role": "Installed app; same Razor UI as the web app", "state": "implemented", "connectsTo": ["core"] },
+      { "id": "web-app", "layer": "client", "technology": "Blazor WebAssembly as a PWA, Tailwind CSS", "role": "Same app in the browser, with a service worker for offline use", "state": "published", "connectsTo": ["core", "edge-cloudflare", "edge-azure"] },
+      { "id": "local-db", "layer": "local-data", "technology": "SQLite per profile, with migrations", "role": "Source of truth on the device; the app works without a network", "state": "implemented", "connectsTo": ["outbox"] },
+      { "id": "outbox", "layer": "local-data", "technology": "Outbox pattern, written in the same transaction as the change", "role": "Local queue of changes, ready to be sent to the cloud", "state": "implemented", "connectsTo": ["firestore"] },
+      { "id": "file-backup", "layer": "local-data", "technology": "Versioned file export and import", "role": "Protects user data until sync exists", "state": "implemented" },
+      { "id": "identity", "layer": "identity", "technology": "Firebase Authentication through the REST API", "role": "Account, session and app lock (with on-device biometrics)", "state": "implemented" },
+      { "id": "firestore", "layer": "cloud-data", "technology": "Cloud Firestore with versioned rules and indexes", "role": "Target of upload sync and, later, of device-to-device download sync", "state": "planned" },
+      { "id": "edge-cloudflare", "layer": "edge", "technology": "Cloudflare Workers serving static assets (no script)", "role": "Primary hosting for the web app and the landing page, with security headers generated at deploy time", "state": "published" },
+      { "id": "edge-azure", "layer": "edge", "technology": "Azure Static Web Apps (Free)", "role": "Beta environment for the web app, fallback for production, and the previous landing page until the switch", "state": "published" },
+      { "id": "arm-runner", "layer": "ci", "technology": "GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM", "role": "Build, tests and deploy without spending paid minutes", "state": "evaluated" },
+      { "id": "minimal-server", "layer": "compute", "technology": "Cloud functions or a .NET service on the ARM VM", "role": "Sign out of all devices and delete an account with all its data", "state": "planned" },
+      { "id": "emulators", "layer": "operations", "technology": "Firebase Emulator Suite (Auth and Firestore)", "role": "Default target for development and integration tests", "state": "implemented" }
+    ]
+  },
+  "clouds": [
+    {
+      "provider": "Cloudflare",
+      "rule": "Only resources with no charge: requests to static assets have no cost and no limit.",
+      "services": [
+        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream" },
+        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Landing page site", "note": "Static files with security headers; the previous site, on Azure, stays up until the switch" }
+      ],
+      "protections": [
+        { "type": "no-overage-sku", "description": "Static assets are not billed per request", "state": "active" }
+      ]
+    },
+    {
+      "provider": "Microsoft Azure",
+      "rule": "Zero spend: Free SKUs only. A pay-as-you-go subscription does not accept a spending cap, so the protection is to deny anything that is not Free.",
+      "services": [
+        {
+          "service": "Static Web Apps", "sku": "Free", "region": "East US 2", "state": "published", "role": "Beta environment for the web app, fallback for production, and the previous landing page site until the switch to Cloudflare",
+          "note": "The beta is published on every push to the staging branch by the official Static Web Apps action. The build is custom (wasm-tools workload and Tailwind), with gates before the upload: beta configuration, a CSP without the emulator, and index.html present",
+          "limits": [
+            { "resource": "bandwidth", "quota": 100, "unit": "GB", "period": "month per subscription", "note": "On Free the site stops serving when the quota is exceeded; no overage is billed" },
+            { "resource": "storage per environment", "quota": 250, "unit": "MB", "period": "total" },
+            { "resource": "storage across all environments", "quota": 500, "unit": "MB", "period": "total" },
+            { "resource": "files per app", "quota": 15000, "unit": "files", "period": "total" },
+            { "resource": "preview environments", "quota": 3, "unit": "environments", "period": "total" },
+            { "resource": "custom domains", "quota": 2, "unit": "domains", "period": "total" },
+            { "resource": "apps", "quota": 10, "unit": "apps", "period": "total per subscription" }
+          ]
+        },
+        { "service": "App Service", "sku": "F1 (Linux)", "state": "legacy", "role": "Previous resource, unused", "note": "No SLA; Microsoft does not support production workloads on F1" }
+      ],
+      "protections": [
+        { "type": "policy", "description": "An Azure Policy at subscription scope denies Static Web Apps and App Service plans that are not Free", "state": "active", "verification": "Deployment validation: Standard and B1 denied, Free accepted", "file": "finops/azure/free-sku-only-policy.json" }
+      ]
+    },
+    {
+      "provider": "Oracle Cloud (OCI)",
+      "rule": "Zero spend: Always Free only, in the home region. A tenancy quota blocks anything beyond that and a budget alerts on any charge.",
+      "services": [
+        {
+          "service": "Compute Ampere A1 (VM.Standard.A1.Flex)", "sku": "Always Free", "region": "sa-saopaulo-1", "state": "in-test", "role": "ARM64 CI runner and, if demand requires it, a minimal server",
+          "limits": [
+            { "resource": "OCPU-hours", "quota": 1500, "unit": "OCPU-hours", "period": "month", "note": "2 OCPUs running continuously after the 2026 cut; the test checks whether paid accounts keep 4. The documentation disagrees: the Always Free resources page says 1,500 for all accounts, while the ARM compute page and the price list still show 3,000 OCPU-hours and 18,000 GB-hours. The effective limit is undefined until the cost report is read after the expected crossing" },
+            { "resource": "memory", "quota": 9000, "unit": "GB-hours", "period": "month", "note": "12 GB running continuously" }
+          ],
+          "note": "Oracle may reclaim an idle instance (95th percentile of CPU, network and memory below 20% over 7 days). The 4-OCPU test has an authorized stop on 2026-11-18; the monthly limit of 1,500 OCPU-hours is crossed around 2026-11-16, and cost readings are scheduled until the stop. On 2026-11-01, seven days after creation, the VM was still running, had not been reclaimed, and the month's cost was zero; this does not prove the account is exempt from reclamation"
+        },
+        { "service": "Block Volume", "sku": "Always Free", "state": "in-test", "role": "VM boot disk (50 of 200 GB in use)", "limits": [ { "resource": "boot and block", "quota": 200, "unit": "GB", "period": "total" }, { "resource": "backups", "quota": 5, "unit": "backups", "period": "total" } ] }
+      ],
+      "protections": [
+        { "type": "quota", "description": "A tenancy quota zeroes compute and block storage and allows only the free A1, including the regional count. During the test, the applied quota allows 4 OCPUs and 24 GB on the A1 and, at that value, does not block the 1,500 OCPU-hour overage; the budget is what warns about cost", "state": "active", "verification": "resource-availability shows only the A1 available; other shapes at 0", "file": "finops/oci/free-tier-only-quota.txt" },
+        { "type": "budget", "description": "Monthly budget of 1 unit of the tenancy currency with an alert from 0.01 of actual spend", "state": "active", "file": "finops/oci/budget.json" },
+        { "type": "alert", "description": "A notice at the start of every work session with the deadline and the cost checks of the 4-OCPU test, until the VM is stopped", "state": "active" }
+      ]
+    },
+    {
+      "provider": "Google Cloud / Firebase",
+      "rule": "Zero spend on the Blaze plan: usage stays below the no-cost quota. Google has no limit that blocks spend, only budget alerts.",
+      "services": [
+        { "service": "Firebase Authentication", "sku": "Blaze (no-cost quota)", "state": "implemented", "role": "Identity", "limits": [ { "resource": "monthly active users", "quota": 50000, "unit": "MAU", "period": "month" }, { "resource": "SMS", "quota": 0, "unit": "SMS", "period": "month", "note": "Phone sign-in is not enabled: it is billed from the first SMS" } ] },
+        { "service": "Cloud Firestore", "sku": "Blaze (no-cost quota)", "region": "southamerica-east1", "state": "planned", "role": "Sync", "limits": [ { "resource": "reads", "quota": 50000, "unit": "documents", "period": "day" }, { "resource": "writes", "quota": 20000, "unit": "documents", "period": "day" }, { "resource": "stored", "quota": 1, "unit": "GiB", "period": "total", "note": "The (default) database only; a second database is billed" } ] },
+        { "service": "Cloud Build", "sku": "Free", "state": "evaluated", "role": "x64 Android build, which does not run on the ARM runner", "limits": [ { "resource": "build minutes", "quota": 2500, "unit": "min", "period": "month" } ] },
+        { "service": "Firebase (beta environment project)", "sku": "Spark (no billing)", "state": "published", "role": "Beta environment identity, separate from production" },
+        { "service": "Cloud Run", "state": "discarded", "role": "Backend of a previous version", "note": "Deleted together with the image repository: zero requests in 365 days and no reference in the code" }
+      ],
+      "protections": [
+        { "type": "budget", "description": "Monthly budget of BRL 1 filtered to the app's project, with alerts at 1%, 50% and 100%", "state": "active" },
+        { "type": "no-overage-sku", "description": "The beta environment uses a Firebase project on the Spark plan: when it hits the quota it stops instead of billing", "state": "active" }
+      ]
+    }
+  ],
+  "finops": {
+    "operationalLimitPercent": 80,
+    "measurements": [
+      { "name": "first visit to the web app", "value": 4.08, "unit": "MB (brotli)", "how": "Measured in the browser: about 80 requests" },
+      { "name": "repeat visit with the service worker", "value": 7, "unit": "KB", "how": "Measured in the browser" },
+      { "name": "bandwidth per active user", "value": 12.8, "unit": "MB/month", "how": "Estimated: every release invalidates all files (same ETag)" },
+      { "name": "share of bandwidth caused by updates", "value": 64, "unit": "%", "how": "Estimated from the bandwidth per user and the release frequency" },
+      { "name": "active users that fit in SWA Free", "value": 7800, "unit": "MAU", "how": "100 GB/month divided by the bandwidth per user" },
+      { "name": "web publish on the ARM runner", "value": 45, "unit": "s", "how": "Measured on the A1 VM" },
+      { "name": ".NET tests on the ARM runner", "value": 977, "unit": "passing tests", "how": "Point-in-time count from the ARM runner evaluation (ADR 0004), run on the A1 VM (.NET 10 and wasm-tools require libatomic1). The current counts per suite are in the Quality section" },
+      { "name": "A1 usage in October (4-OCPU VM since Oct 25)", "value": 600.48, "unit": "OCPU-hours", "how": "Read from the month's cost report: below both possible limits (1,500 and 3,000), zero cost. In November, running the whole month, the VM would consume 2,880 OCPU-hours" },
+      { "name": "publish to Cloudflare", "value": 1, "unit": "min", "how": "Measured with the build on the developer PC" },
+      { "name": "files uploaded in an incremental publish", "value": 10, "unit": "of 78 files", "how": "Measured in the Wrangler upload: only changed files are sent" },
+      { "name": "internationalization data file on Cloudflare", "value": 331, "unit": "KB (zstd)", "how": "Measured in the browser on a temporary Worker: the 1.1 MB file started being compressed once served as application/wasm; the app opened, including offline. Still to repeat on the Azure beta" },
+      { "name": "post-publish verification of production", "value": 20, "unit": "of 20 items", "how": "Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others" }
+    ],
+    "reevaluationTriggers": [
+      "Web above 80 GB/month: reevaluate a CDN from another provider",
+      "Firestore near 40 thousand reads/day: reevaluate the cloud database",
+      "Compute charge on OCI during the A1 test: go back to 2 OCPUs and 12 GB"
+    ]
+  },
+  "quality": {
+    "suites": [
+      { "name": "Core unit and integration", "tool": "xUnit", "target": ".NET", "count": 596 },
+      { "name": "Integration against the emulator", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 5, "note": "Skipped when the emulator is not running, as in CI" },
+      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 514 },
+      { "name": "Process automation scripts", "tool": "node:test", "target": "Node", "count": 288, "note": "Cover the CI, cost and VM monitoring tools and the secrets hook; 0 failures" },
+      { "name": "End-to-end on the web", "tool": "Playwright", "target": "Web at 3 widths (phone, tablet, desktop)", "count": 117 },
+      { "name": "End-to-end on the Windows app", "tool": "Playwright over CDP on WebView2", "target": "Windows", "count": 3 },
+      { "name": "Layout audit on Android", "tool": "Playwright + adb over USB", "target": "Real Android device", "count": 8, "note": "Audited screens: scrolling, off-screen elements, misaligned elements, touch targets below 40 px" }
+    ],
+    "practices": [
+      "TDD: the test fails for the right reason before the implementation",
+      "Compiler warnings treated as errors; XML documentation required in CI",
+      "Security headers and CSP tested end to end",
+      "Service worker tested end to end: returns to the app from the cache and opens offline",
+      "Service worker hardened against a redirected response from the edge, with a simulated redirect in the end-to-end tests",
+      "Every release checked by script the way a client would see it: headers, wasm type, environment, second visit, service worker cache and offline open",
+      "SonarQube Cloud quality gate on pull requests",
+      "Git pre-commit hook that scans the staged content and blocks a secret before the commit exists",
+      "Third-party actions pinned to the full commit SHA, not to a tag",
+      "Upgrade tested on the published beta: the app opens with the profile written by the previous version and checks that local data survives; the profile is kept only if the run is green",
+      "The .NET SDK and workload set pinned in a version file, so beta and production publish with the same runtime",
+      "Production published only by manual dispatch, with a typed confirmation and only commits that already passed a green beta",
+      "Dependency updates in monthly PRs, with a 14-day wait and no major versions of the .NET packages",
+      "Local Firebase (emulators) as the default target; the real project only when the emulator does not respond",
+      "Per-file documentation in a mirror of the tree, with invariants and reasons rather than signatures"
+    ]
+  },
+  "process": [
+    "Every delivery goes through specification, plan, TDD execution, independent review and fixes with tests",
+    "Minor review findings are recorded with an owner and a time to resolve them",
+    "Development assisted by specialized agents per layer (domain, data, UI, hosts, e2e, review, debugging, documentation research, cloud)",
+    "Each agent has a model and effort level set by the type of work, and an orchestration step decides what runs in parallel and how to evaluate what comes back",
+    "This showcase is updated from a sanitized fact package: the README data blocks and the ADRs are generated by script, and CI (facts, leaks, secrets and SonarQube Cloud) blocks any PR that fails",
+    "Each cloud has a versioned file of free-tier quotas, checked against the official source, with an operational limit of 80%",
+    "Cloud operations (publishing, checking resources, costs and quotas) go through an infrastructure agent called by the main session, with mandatory checks and the pitfalls already hit on record"
+  ],
+  "featured": {
+    "measurements": [
+      "first visit to the web app",
+      "repeat visit with the service worker",
+      "post-publish verification of production",
+      "active users that fit in SWA Free"
+    ],
+    "practices": [
+      "TDD: the test fails for the right reason before the implementation",
+      "Service worker tested end to end: returns to the app from the cache and opens offline",
+      "Every release checked by script the way a client would see it: headers, wasm type, environment, second visit, service worker cache and offline open",
+      "Third-party actions pinned to the full commit SHA, not to a tag",
+      "Git pre-commit hook that scans the staged content and blocks a secret before the commit exists",
+      "Production published only by manual dispatch, with a typed confirmation and only commits that already passed a green beta"
+    ],
+    "process": [
+      "Every delivery goes through specification, plan, TDD execution, independent review and fixes with tests",
+      "This showcase is updated from a sanitized fact package: the README data blocks and the ADRs are generated by script, and CI (facts, leaks, secrets and SonarQube Cloud) blocks any PR that fails"
+    ]
+  },
+  "roadmap": [
+    { "item": "Custom domain: production on Cloudflare and Azure back to fallback, switched through DNS", "state": "planned" },
+    { "item": "CI with GitHub Actions on the ARM runner: build, tests, per-branch preview and production on Cloudflare", "state": "planned" },
+    { "item": "Upload sync (outbox to Firestore) with rules tested on the emulator", "state": "planned" },
+    { "item": "Device-to-device download sync with a conflict rule", "state": "planned" },
+    { "item": "Minimal server: Functions or .NET on the ARM VM", "state": "planned", "condition": "Depends on the estimated client count and on equal or better performance" },
+    { "item": "Containerized APIs on OCI behind a Cloudflare Tunnel, admin access over Tailscale, PostgreSQL and Redis", "state": "planned", "condition": "Original topology of this showcase; enters once there is a backend with measured load" },
+    { "item": "AWS and Alibaba Cloud", "state": "discarded", "condition": "Reevaluate at the finops triggers" }
+  ]
+}

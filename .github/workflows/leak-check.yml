@@ -1,0 +1,55 @@
+name: leak-check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # The job id "verificar" is the required status check name in the main ruleset. Do not rename it
+  # without changing the ruleset first.
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Facts are valid
+        run: node tools/verify-facts.mjs
+      - name: README is up to date with the facts
+        run: node tools/generate-readme.mjs --check
+      - name: ADRs are up to date with the decisions
+        run: node tools/generate-adrs.mjs --check
+      - name: Tool tests
+        run: node --test "tools/*.test.mjs"
+      - name: No leaks in the files
+        env:
+          VITRINE_PROIBIDOS: ${{ secrets.VITRINE_PROIBIDOS }}
+        run: node tools/check-leaks.mjs --require-list
+      - name: No leaks in the PR history
+        if: github.event_name == 'pull_request'
+        env:
+          VITRINE_PROIBIDOS: ${{ secrets.VITRINE_PROIBIDOS }}
+        run: node tools/check-leaks.mjs --require-list --range "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - name: Free-text PR does not touch facts, tools or workflows
+        # What identifies this PR is the text/<subject> branch, never the author.
+        if: github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'text/')
+        run: |
+          protected=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^(facts/|tools/|\.github/|AGENTS\.md$)' || true)
+          if [ -n "$protected" ]; then echo "Protected paths changed:"; echo "$protected"; exit 1; fi
+      - name: Facts package only touches facts/, docs/adr/, docs/engineering.md and README.md (R7)
+        # facts/* PRs are auto-merged; any other path requires a human PR. docs/adr/ and the data blocks of docs/engineering.md are generated and checked in the step above.
+        if: github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'facts/')
+        run: |
+          outside=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -vE '^(facts/|docs/adr/|docs/engineering\.md$|README\.md$)' || true)
+          if [ -n "$outside" ]; then echo "R7: the facts package changed paths outside facts/, docs/adr/, docs/engineering.md and README.md:"; echo "$outside"; exit 1; fi
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

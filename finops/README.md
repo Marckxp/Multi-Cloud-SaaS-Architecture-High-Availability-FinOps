@@ -1,48 +1,50 @@
-# FinOps: proteções de custo zero
+# FinOps: zero-cost guardrails
 
-Cada arquivo aqui é aplicado com o CLI do próprio provedor. Os valores entre `< >` são da sua conta e nunca são versionados.
+Each file here is applied with the provider's own CLI. Values between `< >` belong to your account and are never versioned.
 
-## Azure: negar o que não for Free
+## Azure: deny anything that is not Free
 
-Static Web Apps e planos do App Service fora do Free são negados no escopo da assinatura. Uma assinatura paga por uso não aceita teto de gasto, então negar é a única proteção que de fato impede a cobrança.
+Static Web Apps and App Service plans outside the Free tier are denied at subscription scope. A pay-as-you-go subscription does not accept a spending cap, so denying is the only guardrail that actually prevents billing.
 
 ```bash
-az policy definition create --name somente-sku-free-web \
-  --rules "$(jq -c .properties.policyRule azure/politica-somente-free.json)" \
-  --display-name "Somente SKU Free para Static Web Apps e planos do App Service" --mode All
-az policy assignment create --name somente-sku-free-web --policy somente-sku-free-web \
-  --scope /subscriptions/<ID_DA_ASSINATURA>
+az policy definition create --name free-sku-only-web \
+  --rules "$(jq -c .properties.policyRule azure/free-sku-only-policy.json)" \
+  --display-name "Free SKU only for Static Web Apps and App Service plans" --mode All
+az policy assignment create --name free-sku-only-web --policy free-sku-only-web \
+  --scope /subscriptions/<SUBSCRIPTION_ID>
 ```
 
-Para conferir, valide uma implantação com SKU Standard: ela tem de ser negada. O `checkPolicyRestrictions` voltou vazio nos testes e não serve como prova.
+To verify, validate a deployment with the Standard SKU: it must be denied. `checkPolicyRestrictions` came back empty in the tests and is not proof.
 
-## Oracle Cloud: cota de tenancy e orçamento
+## Oracle Cloud: tenancy quota and budget
 
-A cota zera as famílias compute, compute-core, compute-memory e block-storage e libera só o Ampere A1 do Always Free. A contagem **regional** do A1 (`standard-a1-core-regional-count` e `standard-a1-memory-regional-count`) é obrigatória: sem ela, até a forma gratuita falha com `QuotaExceeded`.
+The quota zeroes the compute, compute-core, compute-memory and block-storage families and allows only the Always Free Ampere A1. The **regional** A1 count (`standard-a1-core-regional-count` and `standard-a1-memory-regional-count`) is mandatory: without it, even the free shape fails with `QuotaExceeded`.
 
 ```bash
-oci limits quota create --compartment-id <OCID_DA_TENANCY> --name somente-gratuito \
-  --description "Gasto zero: só o Always Free" \
-  --statements "$(jq -R . oci/cota-somente-gratuito.txt | jq -sc .)"
+oci limits quota create --compartment-id <TENANCY_OCID> --name free-tier-only \
+  --description "Zero spend: Always Free only" \
+  --statements "$(jq -R . oci/free-tier-only-quota.txt | jq -sc .)"
 ```
 
-O orçamento (`oci/orcamento.json`) é de 1 por mês, com alerta a partir de 0,01 de gasto **real**: qualquer cobrança avisa.
+**Test in progress.** The versioned quota file is the baseline of 2 OCPUs and 12 GB. A test is under way with a larger A1 allocation (4 OCPUs and 24 GB), to find out whether it stays free; the quota applied during the test is larger than the file. The rule may change when the test ends, and then this file and the main README are updated from the facts.
+
+The budget (`oci/budget.json`) is 1 unit of the tenancy currency per month, with an alert from 0.01 of **actual** spend: any charge sends a notice.
 
 ```bash
-oci budgets budget budget create --compartment-id <OCID_DA_TENANCY> --amount 1 --reset-period MONTHLY \
-  --target-type COMPARTMENT --targets '["<OCID_DA_TENANCY>"]' --display-name gasto-zero
-oci budgets budget alert-rule create --budget-id <OCID_DO_ORCAMENTO> --type ACTUAL \
-  --threshold 0.01 --threshold-type ABSOLUTE --recipients <E-MAIL_DO_RESPONSAVEL>
+oci budgets budget budget create --compartment-id <TENANCY_OCID> --amount 1 --reset-period MONTHLY \
+  --target-type COMPARTMENT --targets '["<TENANCY_OCID>"]' --display-name zero-spend
+oci budgets budget alert-rule create --budget-id <BUDGET_OCID> --type ACTUAL \
+  --threshold 0.01 --threshold-type ABSOLUTE --recipients <RESPONSIBLE_EMAIL>
 ```
 
 ## Google Cloud / Firebase
 
-No plano Blaze não existe bloqueio de gasto, só alerta de orçamento na conta de faturamento. Cuidados para ficar na cota sem custo:
+The Blaze plan has no spend block, only a budget alert on the billing account. Precautions to stay inside the free quota:
 
-- não habilitar o login por telefone (o SMS é cobrado desde o primeiro);
-- usar só o banco `(default)` do Firestore (um segundo banco é cobrado desde o primeiro uso);
-- buckets novos do Cloud Storage só têm cota gratuita nas regiões dos EUA.
+- do not enable phone sign-in (SMS is billed from the first message);
+- use only the `(default)` Firestore database (a second database is billed from first use);
+- new Cloud Storage buckets only get a free quota in US regions.
 
-## Limite operacional
+## Operational limit
 
-Cada cota gratuita tem alerta em 80%. Os gatilhos de reavaliação de provedor estão no README principal.
+Each free quota has an alert at 80%. The provider reevaluation triggers are in the main README.
