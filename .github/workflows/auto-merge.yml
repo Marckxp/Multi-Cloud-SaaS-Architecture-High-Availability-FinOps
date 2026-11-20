@@ -1,0 +1,47 @@
+name: auto-merge
+
+# Turns on auto-merge for the PRs that may enter without a human merge. GitHub only merges
+# when the checks required by the main ruleset (verificar, revisao and Sonar) pass.
+#   - facts/*: facts package opened by the repository owner, with the content already approved
+#     before the commit; the verificar job fails if it leaves facts/, docs/adr/, docs/engineering.md and README.md.
+#   - ci/*: owner PRs that change tools and workflows. User decision on 2026-11-01: the showcase
+#     asks for no human validation; the ruleset checks are the gate.
+#   - Dependabot: all updates, with the 14-day cooldown of dependabot.yml.
+# Other PRs keep a human merge.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled]
+
+permissions: {}
+
+jobs:
+  facts-and-ci:
+    # Starts with "!": it needs the full expression syntax, otherwise the whole file is invalid.
+    if: ${{ !github.event.pull_request.draft && ((startsWith(github.event.pull_request.head.ref, 'facts/') && github.event.pull_request.user.login == github.repository_owner && contains(github.event.pull_request.labels.*.name, 'facts-package')) || (startsWith(github.event.pull_request.head.ref, 'ci/') && github.event.pull_request.user.login == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Auto-merge is turned on with the owner's token (JULES_GATILHO_TOKEN, fine-grained, this
+      # showcase only; the secret name is kept): a merge made with GITHUB_TOKEN does not trigger
+      # other workflows, and the verificar job needs the "push" event on main (the merge of PR #26,
+      # made with GITHUB_TOKEN, did not produce it).
+      - name: Turn on auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.JULES_GATILHO_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch
+
+  dependabot:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.action != 'labeled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Turn on auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --merge --delete-branch

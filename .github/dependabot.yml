@@ -1,4 +1,4 @@
-# Mantém as actions atualizadas, inclusive as fixadas por SHA (o comentário com a versão é atualizado junto).
+# Keeps the actions up to date, including the ones pinned by SHA (the version comment is updated along with them).
 version: 2
 updates:
   - package-ecosystem: github-actions
