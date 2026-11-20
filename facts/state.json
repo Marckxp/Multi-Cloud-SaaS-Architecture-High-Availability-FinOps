@@ -1,6 +1,6 @@
 {
-  "packageVersion": 6,
-  "generatedAt": "2026-11-02",
+  "packageVersion": 7,
+  "generatedAt": "2026-11-20",
   "architecture": {
     "pattern": "offline-first with a static edge and a cloud used only for identity and data",
     "summary": "The client runs entirely on the device (native or browser) with a local database. The cloud serves static files, handles identity and, in a later stage, sync. There is no application server of its own: a backend is added only when measured demand justifies it.",
@@ -25,7 +25,7 @@
       "provider": "Cloudflare",
       "rule": "Only resources with no charge: requests to static assets have no cost and no limit.",
       "services": [
-        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream" },
+        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream. On 2026-11-20 production was published from the main branch and the post-publish verification came back green" },
         { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Landing page site", "note": "Static files with security headers; the previous site, on Azure, stays up until the switch" }
       ],
       "protections": [
@@ -38,7 +38,7 @@
       "services": [
         {
           "service": "Static Web Apps", "sku": "Free", "region": "East US 2", "state": "published", "role": "Beta environment for the web app, fallback for production, and the previous landing page site until the switch to Cloudflare",
-          "note": "The beta is published on every push to the staging branch by the official Static Web Apps action. The build is custom (wasm-tools workload and Tailwind), with gates before the upload: beta configuration, a CSP without the emulator, and index.html present",
+          "note": "On 2026-11-20 the beta passed its checks with the real user journey. The beta is published on every push to the staging branch by the official Static Web Apps action. The build is custom (wasm-tools workload and Tailwind), with gates before the upload: beta configuration, a CSP without the emulator, and index.html present",
           "limits": [
             { "resource": "bandwidth", "quota": 100, "unit": "GB", "period": "month per subscription", "note": "On Free the site stops serving when the quota is exceeded; no overage is billed" },
             { "resource": "storage per environment", "quota": 250, "unit": "MB", "period": "total" },
@@ -115,9 +115,9 @@
   },
   "quality": {
     "suites": [
-      { "name": "Core unit and integration", "tool": "xUnit", "target": ".NET", "count": 596 },
-      { "name": "Integration against the emulator", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 5, "note": "Skipped when the emulator is not running, as in CI" },
-      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 514 },
+      { "name": "Core unit and integration", "tool": "xUnit", "target": ".NET", "count": 1282, "note": "Passing in CI on the staging branch on 2026-11-20; the emulator tests below are skipped in that job and are not part of this count" },
+      { "name": "Integration against the emulator", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 82, "note": "Skipped when the emulator is not running, as in CI; all 82 were skipped in the CI job on 2026-11-20" },
+      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 887, "note": "Passing in CI on 2026-11-20" },
       { "name": "Process automation scripts", "tool": "node:test", "target": "Node", "count": 288, "note": "Cover the CI, cost and VM monitoring tools and the secrets hook; 0 failures" },
       { "name": "End-to-end on the web", "tool": "Playwright", "target": "Web at 3 widths (phone, tablet, desktop)", "count": 117 },
       { "name": "End-to-end on the Windows app", "tool": "Playwright over CDP on WebView2", "target": "Windows", "count": 3 },
@@ -138,6 +138,8 @@
       "Production published only by manual dispatch, with a typed confirmation and only commits that already passed a green beta",
       "Dependency updates in monthly PRs, with a 14-day wait and no major versions of the .NET packages",
       "Local Firebase (emulators) as the default target; the real project only when the emulator does not respond",
+      "A test is labeled flaky only after its class filter has been run 5 to 8 times; two unstable synchronization tests were stabilized this way",
+      "Static-analysis findings are fixed in the code (cognitive complexity, unawaited promises); a false positive, such as a public client key or a deliberately invalid test password, is marked with a written justification",
       "Per-file documentation in a mirror of the tree, with invariants and reasons rather than signatures"
     ]
   },

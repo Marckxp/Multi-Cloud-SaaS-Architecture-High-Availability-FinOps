@@ -19,6 +19,8 @@ The front page shows a short selection. This page has the complete lists, genera
 - Production published only by manual dispatch, with a typed confirmation and only commits that already passed a green beta
 - Dependency updates in monthly PRs, with a 14-day wait and no major versions of the .NET packages
 - Local Firebase (emulators) as the default target; the real project only when the emulator does not respond
+- A test is labeled flaky only after its class filter has been run 5 to 8 times; two unstable synchronization tests were stabilized this way
+- Static-analysis findings are fixed in the code (cognitive complexity, unawaited promises); a false positive, such as a public client key or a deliberately invalid test password, is marked with a written justification
 - Per-file documentation in a mirror of the tree, with invariants and reasons rather than signatures
 <!-- generated:practices-all:end -->
 

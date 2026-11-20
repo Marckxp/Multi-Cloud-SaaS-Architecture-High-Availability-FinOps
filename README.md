@@ -9,7 +9,7 @@ The reference architecture of an early-production SaaS that **runs at zero infra
 > **Note:** the business logic and the product live in a private repository. Everything here was extracted from verified facts of the real project (`facts/`), without account identifiers or business rules. No number on this page is a marketing estimate: each one has its measurement method next to it.
 
 <!-- generated:updated:start -->
-Facts as of 2026-11-02 (package v6).
+Facts as of 2026-11-20 (package v7).
 <!-- generated:updated:end -->
 
 ## At a glance
@@ -18,7 +18,7 @@ Facts as of 2026-11-02 (package v6).
 | What | Value | How it was obtained |
 |---|---|---|
 | Architecture decisions recorded | 10 | One file per decision in [`docs/adr/`](docs/adr/), with context, decision, consequences and alternatives |
-| Automated test cases | 1,531 | Sum of the 7 suites in [Quality](#quality) |
+| Automated test cases | 2,667 | Sum of the 7 suites in [Quality](#quality) |
 | first visit to the web app | 4.08 MB (brotli) | Measured in the browser: about 80 requests |
 | repeat visit with the service worker | 7 KB | Measured in the browser |
 | active users that fit in SWA Free | 7,800 MAU | 100 GB/month divided by the bandwidth per user |
@@ -218,9 +218,9 @@ Reevaluation triggers:
 <!-- generated:quality:start -->
 | Suite | Tool | Target | Count |
 |---|---|---|---|
-| Core unit and integration | xUnit | .NET | 596 |
-| Integration against the emulator | xUnit + Firebase Auth Emulator | .NET | 5 |
-| Razor components | bUnit | .NET | 514 |
+| Core unit and integration | xUnit | .NET | 1,282 |
+| Integration against the emulator | xUnit + Firebase Auth Emulator | .NET | 82 |
+| Razor components | bUnit | .NET | 887 |
 | Process automation scripts | node:test | Node | 288 |
 | End-to-end on the web | Playwright | Web at 3 widths (phone, tablet, desktop) | 117 |
 | End-to-end on the Windows app | Playwright over CDP on WebView2 | Windows | 3 |
