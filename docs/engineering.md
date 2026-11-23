@@ -17,6 +17,8 @@ The front page shows a short selection. This page has the complete lists, genera
 - Upgrade tested on the published beta: the app opens with the profile written by the previous version and checks that local data survives; the profile is kept only if the run is green
 - The .NET SDK and workload set pinned in a version file, so beta and production publish with the same runtime
 - Production published only by manual dispatch, with a typed confirmation and only commits that already passed a green beta
+- The self-hosted runner serves only push and manual-dispatch runs of the staging and main branches, never pull requests, so code from a PR cannot read the deploy secrets
+- Production moved to the self-hosted runner only after a rollback to the previous Worker version was rehearsed in both directions, and a repository variable returns the jobs to hosted runners in seconds
 - Dependency updates in monthly PRs, with a 14-day wait and no major versions of the .NET packages
 - Local Firebase (emulators) as the default target; the real project only when the emulator does not respond
 - A test is labeled flaky only after its class filter has been run 5 to 8 times; two unstable synchronization tests were stabilized this way
