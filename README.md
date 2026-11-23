@@ -9,7 +9,7 @@ The reference architecture of an early-production SaaS that **runs at zero infra
 > **Note:** the business logic and the product live in a private repository. Everything here was extracted from verified facts of the real project (`facts/`), without account identifiers or business rules. No number on this page is a marketing estimate: each one has its measurement method next to it.
 
 <!-- generated:updated:start -->
-Facts as of 2026-11-20 (package v7).
+Facts as of 2026-11-23 (package v8).
 <!-- generated:updated:end -->
 
 ## At a glance
@@ -17,12 +17,12 @@ Facts as of 2026-11-20 (package v7).
 <!-- generated:glance:start -->
 | What | Value | How it was obtained |
 |---|---|---|
-| Architecture decisions recorded | 10 | One file per decision in [`docs/adr/`](docs/adr/), with context, decision, consequences and alternatives |
-| Automated test cases | 2,667 | Sum of the 7 suites in [Quality](#quality) |
+| Architecture decisions recorded | 11 | One file per decision in [`docs/adr/`](docs/adr/), with context, decision, consequences and alternatives |
+| Automated test cases | 2,771 | Sum of the 7 suites in [Quality](#quality) |
 | first visit to the web app | 4.08 MB (brotli) | Measured in the browser: about 80 requests |
 | repeat visit with the service worker | 7 KB | Measured in the browser |
 | active users that fit in SWA Free | 7,800 MAU | 100 GB/month divided by the bandwidth per user |
-| post-publish verification of production | 20 of 20 items | Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others |
+| post-publish verification of production | 21 of 21 items | Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others |
 <!-- generated:glance:end -->
 
 **Start here**
@@ -59,10 +59,11 @@ flowchart LR
     firestore["Cloud Firestore with versioned rules and indexes"]:::planned
   end
   subgraph c_compute["Compute"]
-    minimal_server["Cloud functions or a .NET service on the ARM VM"]:::planned
+    minimal_server["Cloud Functions (production and beta)"]:::published
   end
   subgraph c_ci["CI"]
-    arm_runner["GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM"]:::evaluated
+    arm_runner["GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM"]:::implemented
+    vm_agent["Autonomous coding agent started on demand by a manual workflow on the same ARM runner"]:::in_test
   end
   subgraph c_operations["Operations"]
     emulators["Firebase Emulator Suite (Auth and Firestore)"]:::implemented
@@ -108,7 +109,7 @@ There is no cluster to keep alive. Availability comes from three choices:
 | Layer | Technology | Role | State |
 |---|---|---|---|
 | Client | .NET 10 (domain and data libraries) | Business rules and data access in a single codebase, shared by the native app and the web app | 🟢 implemented |
-| Client | .NET MAUI Blazor Hybrid (Android and Windows) | Installed app; same Razor UI as the web app | 🟢 implemented |
+| Client | .NET MAUI Blazor Hybrid (Android and Windows) | Installed app; same Razor UI as the web app. The Android build goes to the store's internal test track from CI | 🟢 implemented |
 | Client | Blazor WebAssembly as a PWA, Tailwind CSS | Same app in the browser, with a service worker for offline use | 🟢 published |
 | On-device data | SQLite per profile, with migrations | Source of truth on the device; the app works without a network | 🟢 implemented |
 | On-device data | Outbox pattern, written in the same transaction as the change | Local queue of changes, ready to be sent to the cloud | 🟢 implemented |
@@ -117,8 +118,9 @@ There is no cluster to keep alive. Availability comes from three choices:
 | Cloud data | Cloud Firestore with versioned rules and indexes | Target of upload sync and, later, of device-to-device download sync | ⚪ planned |
 | Edge | Cloudflare Workers serving static assets (no script) | Primary hosting for the web app and the landing page, with security headers generated at deploy time | 🟢 published |
 | Edge | Azure Static Web Apps (Free) | Beta environment for the web app, fallback for production, and the previous landing page until the switch | 🟢 published |
-| CI | GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM | Build, tests and deploy without spending paid minutes | 🔵 evaluated |
-| Compute | Cloud functions or a .NET service on the ARM VM | Sign out of all devices and delete an account with all its data | ⚪ planned |
+| CI | GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM | Publishes the beta and production without spending paid minutes. A repository variable picks the runner, so a return to hosted runners takes seconds; pull-request jobs never use it, so code from a PR cannot reach the deploy secrets | 🟢 implemented |
+| Compute | Cloud Functions (production and beta) | Server-side operations that cannot be trusted to the client, such as signing out of all devices and deleting an account with all its data | 🟢 published |
+| CI | Autonomous coding agent started on demand by a manual workflow on the same ARM runner | Runs a requested task with no developer PC on: works on its own branch, opens a pull request to the staging branch, never publishes production and gets no cloud secrets | 🟡 in test |
 | Operations | Firebase Emulator Suite (Auth and Firestore) | Default target for development and integration tests | 🟢 implemented |
 <!-- generated:components:end -->
 
@@ -149,7 +151,7 @@ There is no cluster to keep alive. Availability comes from three choices:
 
 | Service | SKU | Region | Role | State |
 |---|---|---|---|---|
-| Compute Ampere A1 (VM.Standard.A1.Flex) | Always Free | sa-saopaulo-1 | ARM64 CI runner and, if demand requires it, a minimal server | 🟡 in test |
+| Compute Ampere A1 (VM.Standard.A1.Flex) | Always Free | sa-saopaulo-1 | ARM64 runner that publishes the beta and production and hosts the on-demand agent; also builds and tests on request | 🟡 in test |
 | Block Volume | Always Free | — | VM boot disk (50 of 200 GB in use) | 🟡 in test |
 
 #### Google Cloud / Firebase
@@ -161,7 +163,8 @@ There is no cluster to keep alive. Availability comes from three choices:
 | Firebase Authentication | Blaze (no-cost quota) | — | Identity | 🟢 implemented |
 | Cloud Firestore | Blaze (no-cost quota) | southamerica-east1 | Sync | ⚪ planned |
 | Cloud Build | Free | — | x64 Android build, which does not run on the ARM runner | 🔵 evaluated |
-| Firebase (beta environment project) | Spark (no billing) | — | Beta environment identity, separate from production | 🟢 published |
+| Firebase (beta environment project) | Blaze (no-cost quota) | — | Beta environment identity, data and functions, separate from production | 🟢 published |
+| Cloud Functions | Blaze (no-cost quota) | southamerica-east1 | Server-side operations of the app (production and beta) | 🟢 published |
 | Cloud Run | — | — | Backend of a previous version | ✖️ discarded |
 <!-- generated:clouds:end -->
 
@@ -171,7 +174,7 @@ Each cloud has a guardrail that **blocks** anything paid where the provider allo
 
 - **Azure:** a policy denies any SKU that is not Free, and a deployment validation proved it.
 - **Oracle Cloud:** a tenancy quota allows only the Always Free A1 shape, and a budget alerts on any charge. A test with a larger A1 allocation is in progress; the rule may change when the test ends.
-- **Firebase:** the beta environment runs on a project without billing, so it stops at the quota instead of billing.
+- **Firebase:** both projects are on the Blaze plan, so the protection is the budget alert, plus usage kept inside the no-cost quota. The beta project moved from Spark to Blaze on 2026-11-07 to publish the functions.
 - **Google Cloud:** the billing plan has no spend block, so the protection is a budget alert, plus choices that keep usage inside the no-cost quota.
 - **Cloudflare:** static assets are not billed per request.
 
@@ -182,9 +185,8 @@ Each cloud has a guardrail that **blocks** anything paid where the provider allo
 | Microsoft Azure | policy | An Azure Policy at subscription scope denies Static Web Apps and App Service plans that are not Free (verified: Deployment validation: Standard and B1 denied, Free accepted) | active | [finops/azure/free-sku-only-policy.json](finops/azure/free-sku-only-policy.json) |
 | Oracle Cloud (OCI) | quota | A tenancy quota zeroes compute and block storage and allows only the free A1, including the regional count. During the test, the applied quota allows 4 OCPUs and 24 GB on the A1 and, at that value, does not block the 1,500 OCPU-hour overage; the budget is what warns about cost (verified: resource-availability shows only the A1 available; other shapes at 0) | active | [finops/oci/free-tier-only-quota.txt](finops/oci/free-tier-only-quota.txt) |
 | Oracle Cloud (OCI) | budget | Monthly budget of 1 unit of the tenancy currency with an alert from 0.01 of actual spend | active | [finops/oci/budget.json](finops/oci/budget.json) |
-| Oracle Cloud (OCI) | alert | A notice at the start of every work session with the deadline and the cost checks of the 4-OCPU test, until the VM is stopped | active | — |
-| Google Cloud / Firebase | budget | Monthly budget of BRL 1 filtered to the app's project, with alerts at 1%, 50% and 100% | active | — |
-| Google Cloud / Firebase | no-overage-sku | The beta environment uses a Firebase project on the Spark plan: when it hits the quota it stops instead of billing | active | — |
+| Oracle Cloud (OCI) | alert | A scheduled monitor reads the VM's hours and cost every 6 hours and alerts at 80%, 95% and 100% of the 3,000 OCPU-hour and 18,000 GB-hour ceiling; the VM is stopped only if a Compute charge appears | active | — |
+| Google Cloud / Firebase | budget | Monthly budget of BRL 1 filtered to the production and beta projects (the beta joined on 2026-11-07), with alerts at 1%, 50% and 100%. It only warns and does not block | active | — |
 <!-- generated:protections:end -->
 
 ### Measurements
@@ -200,10 +202,12 @@ Each cloud has a guardrail that **blocks** anything paid where the provider allo
 | web publish on the ARM runner | 45 s | Measured on the A1 VM |
 | .NET tests on the ARM runner | 977 passing tests | Point-in-time count from the ARM runner evaluation (ADR 0004), run on the A1 VM (.NET 10 and wasm-tools require libatomic1). The current counts per suite are in the Quality section |
 | A1 usage in October (4-OCPU VM since Oct 25) | 600.48 OCPU-hours | Read from the month's cost report: below both possible limits (1,500 and 3,000), zero cost. In November, running the whole month, the VM would consume 2,880 OCPU-hours |
+| A1 usage in November up to the 22nd | 2,027 OCPU-hours | Read from the cost report on 2026-11-22 (data up to 03:00 UTC): 527 above 1,500 with zero cost; the projection for the month is 2,879, below 3,000 |
+| beta publish job on the ARM runner | 192 s (slowest of 4 runs) | Measured over 4 consecutive runs on the self-hosted runner: 1 min 55 s to 3 min 12 s, against 3 min 15 s on the hosted runner |
 | publish to Cloudflare | 1 min | Measured with the build on the developer PC |
 | files uploaded in an incremental publish | 10 of 78 files | Measured in the Wrangler upload: only changed files are sent |
 | internationalization data file on Cloudflare | 331 KB (zstd) | Measured in the browser on a temporary Worker: the 1.1 MB file started being compressed once served as application/wasm; the app opened, including offline. Still to repeat on the Azure beta |
-| post-publish verification of production | 20 of 20 items | Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others |
+| post-publish verification of production | 21 of 21 items | Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others |
 
 Operational limit: alert at **80%** of each free quota.
 
@@ -218,12 +222,12 @@ Reevaluation triggers:
 <!-- generated:quality:start -->
 | Suite | Tool | Target | Count |
 |---|---|---|---|
-| Core unit and integration | xUnit | .NET | 1,282 |
+| Core unit and integration | xUnit | .NET | 1,363 |
 | Integration against the emulator | xUnit + Firebase Auth Emulator | .NET | 82 |
-| Razor components | bUnit | .NET | 887 |
+| Razor components | bUnit | .NET | 905 |
 | Process automation scripts | node:test | Node | 288 |
 | End-to-end on the web | Playwright | Web at 3 widths (phone, tablet, desktop) | 117 |
-| End-to-end on the Windows app | Playwright over CDP on WebView2 | Windows | 3 |
+| End-to-end on the Windows app | Playwright over CDP on WebView2 | Windows | 8 |
 | Layout audit on Android | Playwright + adb over USB | Real Android device | 8 |
 
 - TDD: the test fails for the right reason before the implementation
@@ -255,10 +259,11 @@ The decisions and the context of each one are in [`docs/adr/`](docs/adr/README.m
 | Item | State | Condition |
 |---|---|---|
 | Custom domain: production on Cloudflare and Azure back to fallback, switched through DNS | ⚪ planned | — |
-| CI with GitHub Actions on the ARM runner: build, tests, per-branch preview and production on Cloudflare | ⚪ planned | — |
+| CI with GitHub Actions on the ARM runner: beta and production publishing on the runner (pull-request checks stay on hosted runners) | 🟢 implemented | — |
+| Autonomous agent on the ARM VM, started on demand and blocked from production | 🟡 in test | End-to-end acceptance still to be recorded: read-only request, pull request, refused production dispatch, daily limit |
 | Upload sync (outbox to Firestore) with rules tested on the emulator | ⚪ planned | — |
 | Device-to-device download sync with a conflict rule | ⚪ planned | — |
-| Minimal server: Functions or .NET on the ARM VM | ⚪ planned | Depends on the estimated client count and on equal or better performance |
+| Minimal server on Cloud Functions | 🟢 published | 9 functions active in production; a .NET service on the ARM VM stays an option if measured demand requires it |
 | Containerized APIs on OCI behind a Cloudflare Tunnel, admin access over Tailscale, PostgreSQL and Redis | ⚪ planned | Original topology of this showcase; enters once there is a backend with measured load |
 | AWS and Alibaba Cloud | ✖️ discarded | Reevaluate at the finops triggers |
 <!-- generated:roadmap:end -->

@@ -1,12 +1,12 @@
 {
-  "packageVersion": 7,
-  "generatedAt": "2026-11-20",
+  "packageVersion": 8,
+  "generatedAt": "2026-11-23",
   "architecture": {
     "pattern": "offline-first with a static edge and a cloud used only for identity and data",
     "summary": "The client runs entirely on the device (native or browser) with a local database. The cloud serves static files, handles identity and, in a later stage, sync. There is no application server of its own: a backend is added only when measured demand justifies it.",
     "components": [
       { "id": "core", "layer": "client", "technology": ".NET 10 (domain and data libraries)", "role": "Business rules and data access in a single codebase, shared by the native app and the web app", "state": "implemented", "connectsTo": ["local-db"] },
-      { "id": "native-app", "layer": "client", "technology": ".NET MAUI Blazor Hybrid (Android and Windows)", "role": "Installed app; same Razor UI as the web app", "state": "implemented", "connectsTo": ["core"] },
+      { "id": "native-app", "layer": "client", "technology": ".NET MAUI Blazor Hybrid (Android and Windows)", "role": "Installed app; same Razor UI as the web app. The Android build goes to the store's internal test track from CI", "state": "implemented", "connectsTo": ["core"] },
       { "id": "web-app", "layer": "client", "technology": "Blazor WebAssembly as a PWA, Tailwind CSS", "role": "Same app in the browser, with a service worker for offline use", "state": "published", "connectsTo": ["core", "edge-cloudflare", "edge-azure"] },
       { "id": "local-db", "layer": "local-data", "technology": "SQLite per profile, with migrations", "role": "Source of truth on the device; the app works without a network", "state": "implemented", "connectsTo": ["outbox"] },
       { "id": "outbox", "layer": "local-data", "technology": "Outbox pattern, written in the same transaction as the change", "role": "Local queue of changes, ready to be sent to the cloud", "state": "implemented", "connectsTo": ["firestore"] },
@@ -15,8 +15,9 @@
       { "id": "firestore", "layer": "cloud-data", "technology": "Cloud Firestore with versioned rules and indexes", "role": "Target of upload sync and, later, of device-to-device download sync", "state": "planned" },
       { "id": "edge-cloudflare", "layer": "edge", "technology": "Cloudflare Workers serving static assets (no script)", "role": "Primary hosting for the web app and the landing page, with security headers generated at deploy time", "state": "published" },
       { "id": "edge-azure", "layer": "edge", "technology": "Azure Static Web Apps (Free)", "role": "Beta environment for the web app, fallback for production, and the previous landing page until the switch", "state": "published" },
-      { "id": "arm-runner", "layer": "ci", "technology": "GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM", "role": "Build, tests and deploy without spending paid minutes", "state": "evaluated" },
-      { "id": "minimal-server", "layer": "compute", "technology": "Cloud functions or a .NET service on the ARM VM", "role": "Sign out of all devices and delete an account with all its data", "state": "planned" },
+      { "id": "arm-runner", "layer": "ci", "technology": "GitHub Actions with a self-hosted runner on an Ampere A1 (ARM64) VM", "role": "Publishes the beta and production without spending paid minutes. A repository variable picks the runner, so a return to hosted runners takes seconds; pull-request jobs never use it, so code from a PR cannot reach the deploy secrets", "state": "implemented" },
+      { "id": "minimal-server", "layer": "compute", "technology": "Cloud Functions (production and beta)", "role": "Server-side operations that cannot be trusted to the client, such as signing out of all devices and deleting an account with all its data", "state": "published" },
+      { "id": "vm-agent", "layer": "ci", "technology": "Autonomous coding agent started on demand by a manual workflow on the same ARM runner", "role": "Runs a requested task with no developer PC on: works on its own branch, opens a pull request to the staging branch, never publishes production and gets no cloud secrets", "state": "in-test" },
       { "id": "emulators", "layer": "operations", "technology": "Firebase Emulator Suite (Auth and Firestore)", "role": "Default target for development and integration tests", "state": "implemented" }
     ]
   },
@@ -25,7 +26,7 @@
       "provider": "Cloudflare",
       "rule": "Only resources with no charge: requests to static assets have no cost and no limit.",
       "services": [
-        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream. On 2026-11-20 production was published from the main branch and the post-publish verification came back green" },
+        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream. On 2026-11-23 production was published from the main branch by the self-hosted ARM runner (post-publish verification 21 of 21), after a rollback to the previous Worker version was rehearsed in both directions" },
         { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Landing page site", "note": "Static files with security headers; the previous site, on Azure, stays up until the switch" }
       ],
       "protections": [
@@ -60,19 +61,19 @@
       "rule": "Zero spend: Always Free only, in the home region. A tenancy quota blocks anything beyond that and a budget alerts on any charge.",
       "services": [
         {
-          "service": "Compute Ampere A1 (VM.Standard.A1.Flex)", "sku": "Always Free", "region": "sa-saopaulo-1", "state": "in-test", "role": "ARM64 CI runner and, if demand requires it, a minimal server",
+          "service": "Compute Ampere A1 (VM.Standard.A1.Flex)", "sku": "Always Free", "region": "sa-saopaulo-1", "state": "in-test", "role": "ARM64 runner that publishes the beta and production and hosts the on-demand agent; also builds and tests on request",
           "limits": [
-            { "resource": "OCPU-hours", "quota": 1500, "unit": "OCPU-hours", "period": "month", "note": "2 OCPUs running continuously after the 2026 cut; the test checks whether paid accounts keep 4. The documentation disagrees: the Always Free resources page says 1,500 for all accounts, while the ARM compute page and the price list still show 3,000 OCPU-hours and 18,000 GB-hours. The effective limit is undefined until the cost report is read after the expected crossing" },
+            { "resource": "OCPU-hours", "quota": 1500, "unit": "OCPU-hours", "period": "month", "note": "2 OCPUs running continuously after the 2026 cut; the test checks whether paid accounts keep 4. The documentation disagrees: the Always Free resources page says 1,500 for all accounts, while the ARM compute page and the price list still show 3,000 OCPU-hours and 18,000 GB-hours. The effective limit stays unproven until the month closes. Read on 2026-11-22: 2,027 OCPU-hours used in November, 527 of them above 1,500, all at zero cost; the projection for the month is 2,879, below 3,000. That is strong evidence, not proof, that the limit is 3,000" },
             { "resource": "memory", "quota": 9000, "unit": "GB-hours", "period": "month", "note": "12 GB running continuously" }
           ],
-          "note": "Oracle may reclaim an idle instance (95th percentile of CPU, network and memory below 20% over 7 days). The 4-OCPU test has an authorized stop on 2026-11-18; the monthly limit of 1,500 OCPU-hours is crossed around 2026-11-16, and cost readings are scheduled until the stop. On 2026-11-01, seven days after creation, the VM was still running, had not been reclaimed, and the month's cost was zero; this does not prove the account is exempt from reclamation"
+          "note": "Oracle may reclaim an idle instance (95th percentile of CPU, network and memory below 20% over 7 days). The stop planned for 2026-11-18 was waived by the owner: the monthly 1,500 OCPU-hours was crossed on 2026-11-16 and cost stayed at zero, so the VM keeps running as the default executor for builds, tests and publishing, and is stopped only if a Compute charge appears. On 2026-11-01, seven days after creation, the VM was still running, had not been reclaimed, and the month's cost was zero; this does not prove the account is exempt from reclamation. Since 2026-11-22 the VM also hosts the CI runner (dedicated user without sudo, systemd service, outbound connections only); it uses only boot-disk space and does not change the shape or the hours"
         },
         { "service": "Block Volume", "sku": "Always Free", "state": "in-test", "role": "VM boot disk (50 of 200 GB in use)", "limits": [ { "resource": "boot and block", "quota": 200, "unit": "GB", "period": "total" }, { "resource": "backups", "quota": 5, "unit": "backups", "period": "total" } ] }
       ],
       "protections": [
         { "type": "quota", "description": "A tenancy quota zeroes compute and block storage and allows only the free A1, including the regional count. During the test, the applied quota allows 4 OCPUs and 24 GB on the A1 and, at that value, does not block the 1,500 OCPU-hour overage; the budget is what warns about cost", "state": "active", "verification": "resource-availability shows only the A1 available; other shapes at 0", "file": "finops/oci/free-tier-only-quota.txt" },
         { "type": "budget", "description": "Monthly budget of 1 unit of the tenancy currency with an alert from 0.01 of actual spend", "state": "active", "file": "finops/oci/budget.json" },
-        { "type": "alert", "description": "A notice at the start of every work session with the deadline and the cost checks of the 4-OCPU test, until the VM is stopped", "state": "active" }
+        { "type": "alert", "description": "A scheduled monitor reads the VM's hours and cost every 6 hours and alerts at 80%, 95% and 100% of the 3,000 OCPU-hour and 18,000 GB-hour ceiling; the VM is stopped only if a Compute charge appears", "state": "active" }
       ]
     },
     {
@@ -82,12 +83,12 @@
         { "service": "Firebase Authentication", "sku": "Blaze (no-cost quota)", "state": "implemented", "role": "Identity", "limits": [ { "resource": "monthly active users", "quota": 50000, "unit": "MAU", "period": "month" }, { "resource": "SMS", "quota": 0, "unit": "SMS", "period": "month", "note": "Phone sign-in is not enabled: it is billed from the first SMS" } ] },
         { "service": "Cloud Firestore", "sku": "Blaze (no-cost quota)", "region": "southamerica-east1", "state": "planned", "role": "Sync", "limits": [ { "resource": "reads", "quota": 50000, "unit": "documents", "period": "day" }, { "resource": "writes", "quota": 20000, "unit": "documents", "period": "day" }, { "resource": "stored", "quota": 1, "unit": "GiB", "period": "total", "note": "The (default) database only; a second database is billed" } ] },
         { "service": "Cloud Build", "sku": "Free", "state": "evaluated", "role": "x64 Android build, which does not run on the ARM runner", "limits": [ { "resource": "build minutes", "quota": 2500, "unit": "min", "period": "month" } ] },
-        { "service": "Firebase (beta environment project)", "sku": "Spark (no billing)", "state": "published", "role": "Beta environment identity, separate from production" },
+        { "service": "Firebase (beta environment project)", "sku": "Blaze (no-cost quota)", "state": "published", "role": "Beta environment identity, data and functions, separate from production", "note": "Moved from Spark to Blaze on 2026-11-07 to publish the functions: it now bills what exceeds the quota instead of stopping, shares the account-level quotas with production and is in the budget filter. The daily Firestore quotas stay per project" },
+        { "service": "Cloud Functions", "sku": "Blaze (no-cost quota)", "region": "southamerica-east1", "state": "published", "role": "Server-side operations of the app (production and beta)", "note": "On 2026-11-22 the production functions were republished from the main branch: 9 are active in production at no cost, including one triggered by a Firestore document creation through Eventarc (free for Google-source events). Functions in this region spend the quota faster, upload the source to a bucket outside the quota and pay for internet egress, because the Cloud Run egress quota applies only to North America. Each deploy leaves about 0.55 to 0.6 GiB of images in Artifact Registry, which a 1-day cleanup policy removes; the free tier is 0.5 GiB-month accumulated per account, so several deploys a day can exceed it. In production, 4 of the 6 free secret versions are in use", "limits": [ { "resource": "invocations", "quota": 2000000, "unit": "invocations", "period": "month" }, { "resource": "memory", "quota": 400000, "unit": "GB-s", "period": "month" }, { "resource": "CPU", "quota": 200000, "unit": "CPU-s", "period": "month" }, { "resource": "egress", "quota": 5, "unit": "GB", "period": "month" } ] },
         { "service": "Cloud Run", "state": "discarded", "role": "Backend of a previous version", "note": "Deleted together with the image repository: zero requests in 365 days and no reference in the code" }
       ],
       "protections": [
-        { "type": "budget", "description": "Monthly budget of BRL 1 filtered to the app's project, with alerts at 1%, 50% and 100%", "state": "active" },
-        { "type": "no-overage-sku", "description": "The beta environment uses a Firebase project on the Spark plan: when it hits the quota it stops instead of billing", "state": "active" }
+        { "type": "budget", "description": "Monthly budget of BRL 1 filtered to the production and beta projects (the beta joined on 2026-11-07), with alerts at 1%, 50% and 100%. It only warns and does not block", "state": "active" }
       ]
     }
   ],
@@ -102,10 +103,12 @@
       { "name": "web publish on the ARM runner", "value": 45, "unit": "s", "how": "Measured on the A1 VM" },
       { "name": ".NET tests on the ARM runner", "value": 977, "unit": "passing tests", "how": "Point-in-time count from the ARM runner evaluation (ADR 0004), run on the A1 VM (.NET 10 and wasm-tools require libatomic1). The current counts per suite are in the Quality section" },
       { "name": "A1 usage in October (4-OCPU VM since Oct 25)", "value": 600.48, "unit": "OCPU-hours", "how": "Read from the month's cost report: below both possible limits (1,500 and 3,000), zero cost. In November, running the whole month, the VM would consume 2,880 OCPU-hours" },
+      { "name": "A1 usage in November up to the 22nd", "value": 2027, "unit": "OCPU-hours", "how": "Read from the cost report on 2026-11-22 (data up to 03:00 UTC): 527 above 1,500 with zero cost; the projection for the month is 2,879, below 3,000" },
+      { "name": "beta publish job on the ARM runner", "value": 192, "unit": "s (slowest of 4 runs)", "how": "Measured over 4 consecutive runs on the self-hosted runner: 1 min 55 s to 3 min 12 s, against 3 min 15 s on the hosted runner" },
       { "name": "publish to Cloudflare", "value": 1, "unit": "min", "how": "Measured with the build on the developer PC" },
       { "name": "files uploaded in an incremental publish", "value": 10, "unit": "of 78 files", "how": "Measured in the Wrangler upload: only changed files are sent" },
       { "name": "internationalization data file on Cloudflare", "value": 331, "unit": "KB (zstd)", "how": "Measured in the browser on a temporary Worker: the 1.1 MB file started being compressed once served as application/wasm; the app opened, including offline. Still to repeat on the Azure beta" },
-      { "name": "post-publish verification of production", "value": 20, "unit": "of 20 items", "how": "Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others" }
+      { "name": "post-publish verification of production", "value": 21, "unit": "of 21 items", "how": "Script in a clean browser against the production web app: service worker in control, full cache and offline open, among others" }
     ],
     "reevaluationTriggers": [
       "Web above 80 GB/month: reevaluate a CDN from another provider",
@@ -115,12 +118,12 @@
   },
   "quality": {
     "suites": [
-      { "name": "Core unit and integration", "tool": "xUnit", "target": ".NET", "count": 1282, "note": "Passing in CI on the staging branch on 2026-11-20; the emulator tests below are skipped in that job and are not part of this count" },
-      { "name": "Integration against the emulator", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 82, "note": "Skipped when the emulator is not running, as in CI; all 82 were skipped in the CI job on 2026-11-20" },
-      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 887, "note": "Passing in CI on 2026-11-20" },
+      { "name": "Core unit and integration", "tool": "xUnit", "target": ".NET", "count": 1363, "note": "Passing in CI on the ARM runner on 2026-11-23; the emulator tests below are skipped in that job and are not part of this count" },
+      { "name": "Integration against the emulator", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 82, "note": "Skipped when the emulator is not running, as in CI; all 82 were skipped in the CI job on 2026-11-20 (count not re-measured since)" },
+      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 905, "note": "Passing in CI on the ARM runner on 2026-11-23" },
       { "name": "Process automation scripts", "tool": "node:test", "target": "Node", "count": 288, "note": "Cover the CI, cost and VM monitoring tools and the secrets hook; 0 failures" },
       { "name": "End-to-end on the web", "tool": "Playwright", "target": "Web at 3 widths (phone, tablet, desktop)", "count": 117 },
-      { "name": "End-to-end on the Windows app", "tool": "Playwright over CDP on WebView2", "target": "Windows", "count": 3 },
+      { "name": "End-to-end on the Windows app", "tool": "Playwright over CDP on WebView2", "target": "Windows", "count": 8, "note": "8 of 8 passing on 2026-11-23" },
       { "name": "Layout audit on Android", "tool": "Playwright + adb over USB", "target": "Real Android device", "count": 8, "note": "Audited screens: scrolling, off-screen elements, misaligned elements, touch targets below 40 px" }
     ],
     "practices": [
@@ -136,6 +139,8 @@
       "Upgrade tested on the published beta: the app opens with the profile written by the previous version and checks that local data survives; the profile is kept only if the run is green",
       "The .NET SDK and workload set pinned in a version file, so beta and production publish with the same runtime",
       "Production published only by manual dispatch, with a typed confirmation and only commits that already passed a green beta",
+      "The self-hosted runner serves only push and manual-dispatch runs of the staging and main branches, never pull requests, so code from a PR cannot read the deploy secrets",
+      "Production moved to the self-hosted runner only after a rollback to the previous Worker version was rehearsed in both directions, and a repository variable returns the jobs to hosted runners in seconds",
       "Dependency updates in monthly PRs, with a 14-day wait and no major versions of the .NET packages",
       "Local Firebase (emulators) as the default target; the real project only when the emulator does not respond",
       "A test is labeled flaky only after its class filter has been run 5 to 8 times; two unstable synchronization tests were stabilized this way",
@@ -174,10 +179,11 @@
   },
   "roadmap": [
     { "item": "Custom domain: production on Cloudflare and Azure back to fallback, switched through DNS", "state": "planned" },
-    { "item": "CI with GitHub Actions on the ARM runner: build, tests, per-branch preview and production on Cloudflare", "state": "planned" },
+    { "item": "CI with GitHub Actions on the ARM runner: beta and production publishing on the runner (pull-request checks stay on hosted runners)", "state": "implemented" },
+    { "item": "Autonomous agent on the ARM VM, started on demand and blocked from production", "state": "in-test", "condition": "End-to-end acceptance still to be recorded: read-only request, pull request, refused production dispatch, daily limit" },
     { "item": "Upload sync (outbox to Firestore) with rules tested on the emulator", "state": "planned" },
     { "item": "Device-to-device download sync with a conflict rule", "state": "planned" },
-    { "item": "Minimal server: Functions or .NET on the ARM VM", "state": "planned", "condition": "Depends on the estimated client count and on equal or better performance" },
+    { "item": "Minimal server on Cloud Functions", "state": "published", "condition": "9 functions active in production; a .NET service on the ARM VM stays an option if measured demand requires it" },
     { "item": "Containerized APIs on OCI behind a Cloudflare Tunnel, admin access over Tailscale, PostgreSQL and Redis", "state": "planned", "condition": "Original topology of this showcase; enters once there is a backend with measured load" },
     { "item": "AWS and Alibaba Cloud", "state": "discarded", "condition": "Reevaluate at the finops triggers" }
   ]
