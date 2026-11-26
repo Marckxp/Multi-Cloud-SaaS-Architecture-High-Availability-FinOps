@@ -1,6 +1,6 @@
 {
-  "packageVersion": 8,
-  "generatedAt": "2026-11-23",
+  "packageVersion": 9,
+  "generatedAt": "2026-11-26",
   "architecture": {
     "pattern": "offline-first with a static edge and a cloud used only for identity and data",
     "summary": "The client runs entirely on the device (native or browser) with a local database. The cloud serves static files, handles identity and, in a later stage, sync. There is no application server of its own: a backend is added only when measured demand justifies it.",
@@ -26,7 +26,7 @@
       "provider": "Cloudflare",
       "rule": "Only resources with no charge: requests to static assets have no cost and no limit.",
       "services": [
-        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream. On 2026-11-23 production was published from the main branch by the self-hosted ARM runner (post-publish verification 21 of 21), after a rollback to the previous Worker version was rehearsed in both directions" },
+        { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Primary hosting for the web app", "note": "SPA fallback configured in the Worker and HTML handling turned off, so the edge does not redirect /index.html. The headers file is generated from the security configuration at deploy time. The runtime's internationalization data file is served as application/wasm, because the edge does not compress application/octet-stream. On 2026-11-23 production was published from the main branch by the self-hosted ARM runner (post-publish verification 21 of 21), after a rollback to the previous Worker version was rehearsed in both directions. On 2026-11-26 production was published again from the main branch through the same manual workflow, with the test, publish and verify jobs green" },
         { "service": "Workers (static assets)", "sku": "Free", "state": "published", "role": "Landing page site", "note": "Static files with security headers; the previous site, on Azure, stays up until the switch" }
       ],
       "protections": [
@@ -118,11 +118,10 @@
   },
   "quality": {
     "suites": [
-      { "name": "Core unit and integration", "tool": "xUnit", "target": ".NET", "count": 1363, "note": "Passing in CI on the ARM runner on 2026-11-23; the emulator tests below are skipped in that job and are not part of this count" },
-      { "name": "Integration against the emulator", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 82, "note": "Skipped when the emulator is not running, as in CI; all 82 were skipped in the CI job on 2026-11-20 (count not re-measured since)" },
-      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 905, "note": "Passing in CI on the ARM runner on 2026-11-23" },
+      { "name": "Core unit and integration (with the emulator-backed tests)", "tool": "xUnit + Firebase Auth Emulator", "target": ".NET", "count": 1695, "note": "1,695 of 1,695 passing on 2026-11-26 with the Firebase emulator running. The emulator-backed tests are skipped when it is not running, as in the CI job, so a CI run reports fewer; they were counted as a separate suite until 2026-11-23 (1,363 plus 82, not re-measured separately since)" },
+      { "name": "Razor components", "tool": "bUnit", "target": ".NET", "count": 1148, "note": "1,148 of 1,148 passing on 2026-11-26" },
       { "name": "Process automation scripts", "tool": "node:test", "target": "Node", "count": 288, "note": "Cover the CI, cost and VM monitoring tools and the secrets hook; 0 failures" },
-      { "name": "End-to-end on the web", "tool": "Playwright", "target": "Web at 3 widths (phone, tablet, desktop)", "count": 117 },
+      { "name": "End-to-end on the web", "tool": "Playwright", "target": "Web at 3 widths (phone, tablet, desktop)", "count": 117, "note": "Count not re-measured. On 2026-11-26 a subset of specs at the three widths gave 54 passed, 33 skipped, 0 failures, and the beta user-journey run gave 9 passed" },
       { "name": "End-to-end on the Windows app", "tool": "Playwright over CDP on WebView2", "target": "Windows", "count": 8, "note": "8 of 8 passing on 2026-11-23" },
       { "name": "Layout audit on Android", "tool": "Playwright + adb over USB", "target": "Real Android device", "count": 8, "note": "Audited screens: scrolling, off-screen elements, misaligned elements, touch targets below 40 px" }
     ],
